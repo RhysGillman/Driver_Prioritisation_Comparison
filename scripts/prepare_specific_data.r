@@ -393,6 +393,14 @@ CCLE_copy_number_corrected[CCLE_copy_number_corrected>log2(1.5) & CCLE_copy_numb
 CCLE_copy_number_corrected[CCLE_copy_number_corrected>log2(3)] <- 1
 CCLE_copy_number_corrected <- round(CCLE_copy_number_corrected,0)
 
+
+#########################
+# Gold Standards
+#########################
+
+gold_standards <- read_csv("validation_data/all_gold_standards.csv")
+
+
 #########################
 # Filtering
 #########################
@@ -413,6 +421,18 @@ cell_list <- Reduce(intersect, list(
   colnames(CCLE_copy_number_corrected)
 ))
 
+# Additionally, need to have gold standard data for at least some cell lines in each lineage, though don't necessarily need gold standards for all cell lines
+# This is because the "cohort" of cells is still useful for the algorithms when predicting drivers, and the cell lines lacking gold standard data can be
+# Removed at a later time
+
+CCLE_sample_info <- CCLE_sample_info %>%
+  filter(lineage %in% gold_standards$lineage)
+
+cell_list <- intersect(cell_list, CCLE_sample_info$cell_ID)
+
+
+
+
 CCLE_counts <- CCLE_counts[,cell_list]
 CCLE_tpm <- CCLE_tpm[,cell_list]
 CCLE_mutation_matrix <- CCLE_mutation_matrix[,cell_list]
@@ -431,8 +451,8 @@ gene_list <- Reduce(intersect, list(
   #CNV data
   rownames(CCLE_copy_number_corrected),
   #STRING network
-  unique(append(STRING11_network_directed$protein_1, STRING11_network_directed$protein_2)),
-  unique(append(STRING11_network_undirected$protein_1, STRING11_network_undirected$protein_2))
+  unique(append(network_directed$protein_1, network_directed$protein_2)),
+  unique(append(network_undirected$protein_1, network_undirected$protein_2))
 ))
 
 # Need to ensure that BOTH ends of each interaction are in the gene list
@@ -450,6 +470,7 @@ CCLE_counts <- CCLE_counts[gene_list,]
 CCLE_tpm <- CCLE_tpm[gene_list,]
 CCLE_mutation_matrix <- CCLE_mutation_matrix[gene_list,]
 CCLE_copy_number_corrected <- CCLE_copy_number_corrected[gene_list,]
+gold_standards <- gold_standards %>% filter(gene_ID %in% gene_list)
 
 
 #########################
@@ -466,12 +487,15 @@ write_csv(CCLE_copy_number_corrected %>% rownames_to_column("gene_ID"), paste0(D
 write_csv(CCLE_sample_info, paste0(DATA_DIR,"/sample_info.csv"))
 write_csv(network_directed, paste0(DATA_DIR,"/network_directed.csv"))
 write_csv(network_undirected, paste0(DATA_DIR,"/network_undirected.csv"))
+write_csv(gold_standards, paste0(DATA_DIR,"/gold_standards.csv"))
 
 #########################
 # Summaries
 #########################
 
 SUMMARY_DIR <- paste0(DATA_DIR, "/summary_info")
+
+dir.create(SUMMARY_DIR)
 
 # Cell Counts
 write_csv(
@@ -504,6 +528,102 @@ cnv_summary <- CCLE_copy_number_corrected %>%
   group_by(lineage, copy_number) %>%
   summarise(mean_count = mean(count), max_count = max(count), min_count = min(count))
 
-write_csv(cnv_summary, "data/CCLE_summary_info/CNV_summary.csv")
+write_csv(cnv_summary, paste0(SUMMARY_DIR,"/CNV_summary.csv"))
 
 rm(cnv_summary)
+
+# Network Summary
+
+analyse_network <- function(network, name){
+  # Layout
+  cols <- ncol(network)
+  
+  if(cols <= 3){
+    form <- "long"
+  }else{
+    form <- "matrix"
+  }
+  
+  if(form == "long"){
+    
+    
+    if(cols==2){
+      weighted <- FALSE
+      weight_min <- NA
+      weight_max <- NA
+    }else{
+      if(is_empty(select_if(network, is.numeric))){
+        weighted <- FALSE
+      }else{
+        weighted <- TRUE
+        weight_min <- min(pull(dplyr::select_if(network,is.numeric)))
+        weight_max <- max(pull(dplyr::select_if(network,is.numeric)))
+      }
+      
+    }
+    
+    sub_network <- network %>% select_if(is.character)
+    
+    if(ncol(sub_network) != 2){
+      print("Error: There are not 2 character columns. Check col_types")
+      return(NULL)
+    }
+    
+    colnames(sub_network) <- c("gene1", "gene2")
+    
+    if(nrow(network) == nrow(unique(sub_network))){
+      unique_rows <- TRUE
+    }else(
+      unique_rows <- FALSE
+    )
+    
+    n_edges <- nrow(unique(sub_network))
+    
+    if(identical(sort(unique(sub_network$gene1)), sort(unique(sub_network$gene2)))){
+      equal_genes <- TRUE
+    }else{
+      equal_genes <- FALSE
+    }
+    
+    forward_edges <- sub_network %>% mutate(edge = paste0(gene1,"-",gene2)) %>% pull(edge)
+    reverse_edges <- sub_network %>% mutate(edge = paste0(gene2,"-",gene1)) %>% pull(edge)
+    
+    if(identical(sort(unique(forward_edges)), sort(unique(reverse_edges)))){
+      equal_edges <- TRUE
+    }else{
+      equal_edges <- FALSE
+    }
+    n_uniq_gene1 <- length(unique(sub_network$gene1))
+    n_uniq_gene2 <- length(unique(sub_network$gene2))
+    n_uniq_genes_total <- length(unique(append(sub_network$gene1, sub_network$gene2)))
+    reversed_edges <- paste0(round(length(intersect(forward_edges, reverse_edges))/length(forward_edges)*100,2),"%")
+  }
+  
+  df_summary <- data.frame(name, form, weighted, weight_min, weight_max, unique_rows, equal_genes, equal_edges, n_uniq_genes_total, n_uniq_gene1, n_uniq_gene2, n_edges,reversed_edges)
+  return(df_summary)
+  
+}
+
+network_summary <- rbind(
+  analyse_network(network_undirected, paste0(network_choice,"_undirected_network")),
+  analyse_network(network_directed, paste0(network_choice,"_directed_network"))
+  )
+
+write_csv(network_summary, paste0(SUMMARY_DIR,"/network_summary.csv"))
+
+rm(network_summary)
+
+# Gold Standards Summary
+
+gold_standards_summary <- gold_standards %>%
+  group_by(lineage,cell_ID) %>%
+  summarise(total = n(), drug_sensitive = sum(sensitive, na.rm = T), gene_dependent = sum(dependent, na.rm = T)) %>%
+  group_by(lineage) %>%
+  summarise(mean_total = mean(total),
+            mean_drug_sensitive = mean(drug_sensitive),
+            mean_gene_dependent = mean(gene_dependent)
+            )
+
+write_csv(gold_standards_summary, paste0(SUMMARY_DIR,"/gold_standards_summary.csv"))
+
+rm(gold_standards_summary)

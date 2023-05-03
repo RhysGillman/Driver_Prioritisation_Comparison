@@ -2,6 +2,7 @@
 # This script prepares the gold standard sensitive genes
 # Gold standard sensitive genes are identified as the genes that a cell is particularly sensitive to losing relative to other cells of the same lineage
 # If static thresholds are supplied, also considers highly sensitive genes even if that cell is not an outlier
+# By default, static thresholds aren't used because many genes (average 235 per cell line) have max dependency score (1.000)
 
 # Load Required Packages
 message("Loading Packages")
@@ -25,6 +26,9 @@ opt = parse_args(opt_parser);
 th <- opt$zscore
 dependency_static_th <- opt$dependency
 drug_sensitivity_static_th <- opt$sensitivity
+
+dependency_static_th <- FALSE
+drug_sensitivity_static_th <- FALSE
 
 #############################
 # Functions
@@ -56,6 +60,33 @@ CCLE_sample_info <- read_csv("data/CCLE/Model.csv") %>%
   unique()
 
 #############################
+# Get Expressed Genes
+#############################
+
+CCLE_tpm <- data.table::fread("data/CCLE/OmicsExpressionProteinCodingGenesTPMLogp1.csv") %>%
+  # Replacing DepMap IDs with cell names
+  dplyr::rename(DepMap_ID = 1) %>%
+  dplyr::right_join(dplyr::select(CCLE_sample_info, DepMap_ID, cell_ID), by = "DepMap_ID") %>%
+  na.omit() %>%
+  dplyr::select(-DepMap_ID) %>% dplyr::relocate(cell_ID) %>%
+  data.table::transpose(make.names = "cell_ID", keep.names = "gene_ID") %>%
+  # Fixing gene_IDs by removing everything after a space
+  mutate(gene_ID = gsub(" .*","",gene_ID)) %>%
+  arrange(gene_ID) %>%
+  column_to_rownames("gene_ID") %>%
+  # Trimming genes with low reads
+  
+  # Filtering low expression based on TPM as this accounts for gene length
+  # Cells contain approx 200 000 mRNA at any time, therefore tpm of 5 ~ 1 transcript per cell
+  # Therefore, tpm of 5 is beging used a cutoff to select genes that are being expressed
+  # Data is in log2(tpm+1), therefore filtering for expression abofe log2(5+1)
+  dplyr::filter(rowMeans(dplyr::select(., where(is.numeric))) > log2(5+1)) %>%
+  as.data.frame()
+
+genes <- rownames(CCLE_tpm)
+rm(CCLE_tpm)
+
+#############################
 # Read In Data
 #############################
 message("Reading in data")
@@ -68,6 +99,7 @@ dependency <- fread("data/CCLE/CRISPRGeneDependency.csv") %>%
 
 colnames(dependency) <- gsub(" \\(.*","", colnames(dependency))
 dependency <- dependency[!duplicated(colnames(dependency))]
+dependency <- dependency[colnames(dependency) %in% genes]
 
 # Getting GDSC versions of cell_IDs
 GDSC_IDs <- read_xlsx("data/GDSC/Cell_Lines_Details.xlsx",sheet = "Cell line details") %>%
@@ -130,12 +162,13 @@ DGIdb <- DGIdb %>%
   na.omit()
 
 GDSC <- GDSC %>%
-  left_join(DGIdb, by = c("DRUG_NAME"="drug"))
+  left_join(DGIdb, by = c("DRUG_NAME"="drug")) %>%
+  filter(gene_name %in% genes)
 
 # At this point, we can quickly take the full list of possible genes
 total_genes <- union(GDSC$gene_name, colnames(dependency))
 
-GDSC <- GDSC %>%
+GDSC_matrix <- GDSC %>%
   dplyr::select(DATASET, cell_ID, DRUG_NAME, gene_name, LN_IC50) %>%
   unique() %>%
   mutate(target_ID = paste(DATASET,DRUG_NAME, gene_name, sep = "_")) %>%
@@ -154,7 +187,7 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
   
   lineage_cells <- CCLE_sample_info %>% filter(lineage==lin) %>% dplyr::select(-lineage)
   
-  if(length(which(lineage_cells$DepMap_ID %in% dependency$ModelID)) >= 4){
+  if(length(which(lineage_cells$cell_ID %in% rownames(dependency))) >= 4){
       
     
     
@@ -169,7 +202,7 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
     
     lin_dependency_matrix <- dependency %>%
       rownames_to_column("cell_ID") %>%
-      filter(cell_ID %in% lineage_cells$cell_ID)
+      filter(cell_ID %in% lineage_cells$cell_ID) %>%
       column_to_rownames("cell_ID")
     
     
@@ -218,7 +251,7 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
     
   
     
-    lin_GDSC_matrix <- GDSC %>%
+    lin_GDSC_matrix <- GDSC_matrix %>%
       filter(cell_ID %in% lineage_cells$cell_ID) %>%
       column_to_rownames("cell_ID")
     
@@ -263,11 +296,11 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
     
   
   
-  if(length(which(lineage_cells$DepMap_ID %in% dependency$ModelID)) < 4 & length(which(lineage_cells$cell_ID %in% GDSC$cell_ID)) < 4){
+  if(length(which(lineage_cells$cell_ID %in% rownames(dependency))) < 4 & length(which(lineage_cells$cell_ID %in% GDSC$cell_ID)) < 4){
     next
   }
   
-  if(length(which(lineage_cells$DepMap_ID %in% dependency$ModelID)) < 4){
+  if(length(which(lineage_cells$cell_ID %in% rownames(dependency))) < 4){
     lin_gold_standards <- lin_drug_sensitivity %>% 
       dplyr::select(cell_ID, gene_ID, sensitive) %>%
       mutate(is_gold_standard = sensitive) %>%
@@ -310,6 +343,25 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
   
 }
 
+
+
+gold_standards <- gold_standards %>%
+  mutate(dependent = ifelse(is.na(dependent), FALSE, dependent),
+         sensitive = ifelse(is.na(sensitive), FALSE, sensitive)
+         ) %>%
+  unique()
+  
+write_csv(gold_standards, "validation_data/all_gold_standards.csv")
+
+
+
+
+
+
+#############################
+# Summary Info
+#############################
+
 # This summary shows what percentage of the total genes with available information (~17500 genes) the cells have been identified as being sensitive to, on average
 # per lineage
 
@@ -324,3 +376,52 @@ summary <- gold_standards %>%
             mean_drug_sensitive_percentile_genes = mean(drug_sensitive)/length(total_genes)*100)
 
 write_csv(summary,"validation_data/summary_gold_standards.csv")
+
+test <- get_z_scores(sqrt(dependency[lineage_cells$cell_ID,])) %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(-cell_ID, names_to = "gene_ID", values_to = "z")
+
+ggplot(test, aes(x=z)) +
+  geom_density()
+
+test %>%
+  group_by(cell_ID) %>%
+  filter(z>2) %>%
+  summarise(count = n()) %>%
+  pull(count) %>%
+  mean()
+
+length(gold_standards$gene_ID %>% unique())
+
+lin_dependency %>%
+  group_by(cell_ID) %>%
+  filter(z>2) %>%
+  summarise(count = n()) %>%
+  pull(count) %>%
+  mean()
+
+lin_dependency %>%
+  group_by(cell_ID) %>%
+  filter(dependent) %>%
+  summarise(count = n()) %>%
+  pull(count) %>%
+  mean()
+
+dependency %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(-cell_ID, names_to = "gene_ID", values_to = "dependency") %>%
+  group_by(cell_ID) %>%
+  filter(dependency ==1) %>%
+  summarise(count = n()) %>%
+  pull(count) %>%
+  mean()
+
+test <- get_z_scores(sqrt(dependency[lineage_cells$cell_ID,])) %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(-cell_ID, names_to = "gene_ID", values_to = "z")
+
+ggplot(test, aes(x=z)) +
+  geom_density()
