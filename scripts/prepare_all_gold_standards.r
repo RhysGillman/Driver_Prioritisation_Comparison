@@ -9,26 +9,21 @@ message("Loading Packages")
 suppressPackageStartupMessages (library(optparse, quietly = T))
 suppressPackageStartupMessages (library(tidyverse, quietly = T))
 suppressPackageStartupMessages (library(readxl, quietly = T))
+suppressPackageStartupMessages (library(data.table, quietly = T))
 
 # Handling input arguments
 option_list = list(
-  make_option(c("-z", "--zscore"), type="double", default=2.0, 
-              help="z-score threshold to be used (default = 2.0)", metavar ="z score"),
-  make_option(c("-d", "--dependency"), type="double", default=0.9, 
-              help="static threshold for gene dependency (default = 0.9). Set as FALSE to not use static thresholds", metavar ="Dependency"),
-  make_option(c("-s", "--sensitivity"), type="double", default=2.0, 
-              help="static threshold for drug sensitivity (default = 2.0). Set as FALSE to not use static thresholds", metavar ="Sensitivity")
+  make_option(c("-l", "--local_threshold"), type="double", default=2.0, 
+              help="Local (within a cell type) z-score threshold to be used (default = 2.0)", metavar ="Local Z-score Threshold"),
+  make_option(c("-g", "--global_threshold"), type="double", default=2.0, 
+              help="Global (including all cell types) z-score threshold to be used (default = 2.0)", metavar ="Global Z-score Threshold")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
 
-th <- opt$zscore
-dependency_static_th <- opt$dependency
-drug_sensitivity_static_th <- opt$sensitivity
-
-dependency_static_th <- FALSE
-drug_sensitivity_static_th <- FALSE
+local_th <- opt$local_threshold
+global_th <- opt$global_threshold
 
 #############################
 # Functions
@@ -37,10 +32,11 @@ drug_sensitivity_static_th <- FALSE
 get_z_scores <- function(Matrix){
   Sd   <- apply(Matrix, 2, function(x) sd(x, na.rm=T))
   Mean <- apply(Matrix, 2, function(x) mean(x, na.rm=T))
-  centered <- t(t(Matrix) - Mean)
-  z_scores <- t(t(centered) / Sd)
+  centered <- suppressWarnings(t(t(Matrix) - Mean))
+  z_scores <- suppressWarnings(t(t(centered) / Sd))
   return(z_scores)
 }
+
 
 
 #############################
@@ -91,15 +87,30 @@ rm(CCLE_tpm)
 #############################
 message("Reading in data")
 
-dependency <- fread("data/CCLE/CRISPRGeneDependency.csv") %>%
+
+gene_effect <- fread("data/CCLE/CRISPRGeneEffect.csv") %>%
   as.data.frame() %>%
-  inner_join(CCLE_sample_info[c("DepMap_ID","cell_ID")], by = c("ModelID"="DepMap_ID")) %>%
-  dplyr::select(-ModelID) %>%
+  dplyr::rename(DepMap_ID=V1) %>%
+  inner_join(CCLE_sample_info[c("DepMap_ID","cell_ID")], by = "DepMap_ID") %>%
+  dplyr::select(-DepMap_ID) %>%
   column_to_rownames("cell_ID")
 
-colnames(dependency) <- gsub(" \\(.*","", colnames(dependency))
-dependency <- dependency[!duplicated(colnames(dependency))]
-dependency <- dependency[colnames(dependency) %in% genes]
+colnames(gene_effect) <- gsub(" \\(.*","", colnames(gene_effect))
+gene_effect <- gene_effect[!duplicated(colnames(gene_effect))]
+gene_effect <- gene_effect[colnames(gene_effect) %in% genes]
+
+
+gene_effect_global_z <- get_z_scores(gene_effect) %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "global_z") %>%
+  mutate(global_outlier = global_z < -global_th)
+
+#ggplot(gene_effect_global_z, aes(x=z)) +
+#  geom_density() +
+#  geom_vline(xintercept = -2)
+
+
 
 # Getting GDSC versions of cell_IDs
 GDSC_IDs <- read_xlsx("data/GDSC/Cell_Lines_Details.xlsx",sheet = "Cell line details") %>%
@@ -124,14 +135,14 @@ drug_synonyms <- drug_synonyms %>%
 
 # Reading in drug sensitivity data (firstly, GDSC1)
 GDSC1 <- read_xlsx("data/GDSC/GDSC1_fitted_dose_response_24Jul22.xlsx") %>%
-  dplyr::select(DATASET,COSMIC_ID, DRUG_ID, DRUG_NAME, LN_IC50, original_z_score = Z_SCORE) %>%
+  dplyr::select(DATASET,COSMIC_ID, DRUG_ID, DRUG_NAME, LN_IC50) %>%
   inner_join(GDSC_IDs, by = "COSMIC_ID") %>% dplyr::select(-GDSC_ID, -COSMIC_ID) %>%
   dplyr::relocate(cell_ID) %>%
   unique() %>%
   na.omit()
 
 GDSC2 <- read_xlsx("data/GDSC/GDSC2_fitted_dose_response_24Jul22.xlsx") %>%
-  dplyr::select(DATASET,COSMIC_ID, DRUG_ID, DRUG_NAME, LN_IC50, original_z_score = Z_SCORE) %>%
+  dplyr::select(DATASET,COSMIC_ID, DRUG_ID, DRUG_NAME, LN_IC50) %>%
   inner_join(GDSC_IDs, by = "COSMIC_ID") %>% dplyr::select(-GDSC_ID, -COSMIC_ID) %>%
   dplyr::relocate(cell_ID) %>%
   unique() %>%
@@ -155,20 +166,20 @@ write_csv(data.frame(drug_types),"data/DGIdb/selected_drug_types.csv")
 DGIdb <- DGIdb %>% 
   pivot_longer(cols = drug_claim_name:drug_name, names_to = "name_category", values_to = "drug_name") %>%
   mutate(drug_name = toupper(gsub("[[:punct:], ]", "", drug_name))) %>%
-  inner_join(drug_synonyms, by = c("drug_name"="synonyms")) %>%
+  inner_join(drug_synonyms, by = c("drug_name"="synonyms"), multiple="all") %>%
   dplyr::select(gene_name, drug=primary_name,interaction_types) %>%
   filter(interaction_types %in% drug_types) %>%
   unique() %>%
   na.omit()
 
 GDSC <- GDSC %>%
-  left_join(DGIdb, by = c("DRUG_NAME"="drug")) %>%
+  left_join(DGIdb, by = c("DRUG_NAME"="drug"), multiple="all") %>%
   filter(gene_name %in% genes)
 
 # At this point, we can quickly take the full list of possible genes
-total_genes <- union(GDSC$gene_name, colnames(dependency))
+total_genes <- union(GDSC$gene_name, colnames(gene_effect))
 
-GDSC_matrix <- GDSC %>%
+GDSC <- GDSC %>%
   dplyr::select(DATASET, cell_ID, DRUG_NAME, gene_name, LN_IC50) %>%
   unique() %>%
   mutate(target_ID = paste(DATASET,DRUG_NAME, gene_name, sep = "_")) %>%
@@ -176,18 +187,31 @@ GDSC_matrix <- GDSC %>%
   # Taking average of replicate data  
   group_by(cell_ID, target_ID) %>%
   summarise(LN_IC50 = mean(LN_IC50)) %>%
-  pivot_wider(names_from = "target_ID", values_from = "LN_IC50")
+  pivot_wider(names_from = "target_ID", values_from = "LN_IC50") %>%
+  column_to_rownames("cell_ID")
 
-
+GDSC_global_z <- get_z_scores(GDSC) %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(cols = -cell_ID, names_to = "target_ID", values_to = "global_z") %>%
+  mutate(global_outlier = global_z < -global_th) %>%
+  separate(target_ID, into = c("dataset", "drug_name", "gene_ID"))
 
 
 
 for(lin in sort(unique(CCLE_sample_info$lineage))){
+  
   message(paste0("Identifying gold standards for ", lin, " cells"))
   
   lineage_cells <- CCLE_sample_info %>% filter(lineage==lin) %>% dplyr::select(-lineage)
   
-  if(length(which(lineage_cells$cell_ID %in% rownames(dependency))) >= 4){
+  if(length(which(lineage_cells$cell_ID %in% rownames(gene_effect))) < 4 & length(which(lineage_cells$cell_ID %in% rownames(GDSC))) < 4){
+    next
+  }
+  
+  
+  
+  if(length(which(lineage_cells$cell_ID %in% rownames(gene_effect))) >= 4){
       
     
     
@@ -200,47 +224,48 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
     # “Probability of dependency” is essentially modeling the gene effect as either being sampled from the 
     # distribution arising from “essential” genes or “non-essential” genes, and being a probability, the values range from 0 to 1.
     
-    lin_dependency_matrix <- dependency %>%
+    lin_gene_effect_matrix <- gene_effect %>%
       rownames_to_column("cell_ID") %>%
       filter(cell_ID %in% lineage_cells$cell_ID) %>%
       column_to_rownames("cell_ID")
     
     
-    lin_dependency <- lin_dependency_matrix %>%
-      # First adding a row of dependency means for each gene across the cells
+    lin_gene_effect <- lin_gene_effect_matrix %>%
+      # First adding a row of gene_effect means for each gene across the cells
       rbind(
-        colMeans(lin_dependency_matrix) %>% 
-          matrix(nrow = 1, dimnames = list("dependency_mean",colnames(lin_dependency_matrix)))
+        colMeans(lin_gene_effect_matrix) %>% 
+          matrix(nrow = 1, dimnames = list("gene_effect_mean",colnames(lin_gene_effect_matrix)))
         ) %>%
       # Transposing data
       rownames_to_column("cell_ID") %>%
       data.table::transpose(make.names = "cell_ID", keep.names = "gene_ID") %>%
-      pivot_longer(cols = -c(gene_ID, dependency_mean), names_to = "cell_ID", values_to = "dependency") %>%
+      pivot_longer(cols = -c(gene_ID, gene_effect_mean), names_to = "cell_ID", values_to = "gene_effect") %>%
       # Then joining with z-scores and calculated outliers
       inner_join(
         # Sqrt data to force normal distribution
-        get_z_scores(sqrt(lin_dependency_matrix)) %>%
+        get_z_scores(lin_gene_effect_matrix) %>%
           as.data.frame() %>%
           rownames_to_column("cell_ID") %>%
-          pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "z") %>%
-          mutate(outlier = z > th),
+          pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "local_z") %>%
+          mutate(local_outlier = local_z < -local_th),
         by = c("gene_ID", "cell_ID")
       ) %>%
       # Defining outliers as dependent genes as long as their dependency score is > 0.5
-      mutate(dependent = ifelse(outlier & dependency > 0.5, TRUE, FALSE)) %>%
-      dplyr::select(cell_ID, gene_ID, dependency, dependency_mean, z, dependent)
+      mutate(dependent = ifelse(local_outlier & gene_effect < -1, TRUE, FALSE)) %>%
+      dplyr::select(cell_ID, gene_ID, gene_effect, gene_effect_mean, local_z, local_outlier, dependent)
     
-    if(dependency_static_th != FALSE){
-      lin_dependency <- lin_dependency %>%
-        mutate(dependent = ifelse(dependency > dependency_static_th, TRUE, dependent))
+    if(global_th != FALSE){
+      lin_gene_effect <- lin_gene_effect %>%
+        left_join(gene_effect_global_z, by = c("cell_ID","gene_ID")) %>%
+        mutate(dependent = ifelse(global_outlier, TRUE, dependent))
       
     }
     
-    rm(lin_dependency_matrix)
+    rm(lin_gene_effect_matrix)
   
   }
   
-  if(length(which(lineage_cells$cell_ID %in% GDSC$cell_ID)) >= 4){
+  if(length(which(lineage_cells$cell_ID %in% rownames(GDSC))) >= 4){
   
     #############################
     # Drug Sensitivity
@@ -251,7 +276,8 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
     
   
     
-    lin_GDSC_matrix <- GDSC_matrix %>%
+    lin_GDSC_matrix <- GDSC %>%
+      rownames_to_column("cell_ID") %>%
       filter(cell_ID %in% lineage_cells$cell_ID) %>%
       column_to_rownames("cell_ID")
     
@@ -270,22 +296,23 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
         get_z_scores(lin_GDSC_matrix) %>%
           as.data.frame() %>%
           rownames_to_column("cell_ID") %>%
-          pivot_longer(cols = -cell_ID, names_to = "target_ID", values_to = "z") %>%
-          mutate(outlier = z < -th),
+          pivot_longer(cols = -cell_ID, names_to = "target_ID", values_to = "local_z") %>%
+          mutate(local_outlier = local_z < -local_th),
         by = c("target_ID", "cell_ID")
       ) %>%
-      mutate(IC50 = round(exp(IC50), 2), IC50_mean = round(exp(IC50_mean)), 2) %>%
+      mutate(IC50 = round(exp(IC50), 2), IC50_mean = round(exp(IC50_mean), 2)) %>%
       # Defining outliers as sensitive
-      mutate(sensitive = ifelse(outlier, TRUE, FALSE)) %>%
-      dplyr::select(cell_ID, target_ID, IC50, IC50_mean, z, sensitive) %>%
+      mutate(sensitive = ifelse(local_outlier, TRUE, FALSE)) %>%
+      dplyr::select(cell_ID, target_ID, IC50, IC50_mean, local_z, local_outlier, sensitive) %>%
       separate(target_ID, into = c("dataset", "drug_name", "gene_ID")) %>%
       relocate(dataset)
     
-    if(drug_sensitivity_static_th != FALSE){
+    if(global_th != FALSE){
+      
       lin_drug_sensitivity <- lin_drug_sensitivity %>%
-        # Bring back original z_scores and define universally sensitive genes as sensitive
-        left_join(GDSC %>% dplyr::select(DATASET, cell_ID, DRUG_NAME, original_z_score), by = c("dataset"="DATASET", "cell_ID", "drug_name"="DRUG_NAME")) %>%
-        mutate(sensitive = ifelse(original_z_score < -drug_sensitivity_static_th, TRUE, sensitive))
+        left_join(GDSC_global_z, by = c("cell_ID","gene_ID")) %>%
+        mutate(sensitive = ifelse(global_outlier, TRUE, sensitive))
+
     }
     
     rm(lin_GDSC_matrix)
@@ -293,14 +320,7 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
   }
   
   
-    
-  
-  
-  if(length(which(lineage_cells$cell_ID %in% rownames(dependency))) < 4 & length(which(lineage_cells$cell_ID %in% GDSC$cell_ID)) < 4){
-    next
-  }
-  
-  if(length(which(lineage_cells$cell_ID %in% rownames(dependency))) < 4){
+  if(length(which(lineage_cells$cell_ID %in% rownames(gene_effect))) < 4){
     lin_gold_standards <- lin_drug_sensitivity %>% 
       dplyr::select(cell_ID, gene_ID, sensitive) %>%
       mutate(is_gold_standard = sensitive) %>%
@@ -308,8 +328,8 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
       unique() %>%
       mutate(lineage = lin, dependent = FALSE) %>%
       dplyr::select(cell_ID,gene_ID,dependent,sensitive,is_gold_standard,lineage)
-  }else if(length(which(lineage_cells$cell_ID %in% GDSC$cell_ID)) < 4){
-    lin_gold_standards <- lin_dependency %>% 
+  }else if(length(which(lineage_cells$cell_ID %in% rownames(GDSC))) < 4){
+    lin_gold_standards <- lin_gene_effect %>% 
       dplyr::select(cell_ID, gene_ID, dependent) %>%
       mutate(is_gold_standard = dependent) %>%
       filter(is_gold_standard) %>%
@@ -323,7 +343,7 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
   #############################
   
   lin_gold_standards <- full_join(
-    lin_dependency %>% dplyr::select(cell_ID, gene_ID, dependent),
+    lin_gene_effect %>% dplyr::select(cell_ID, gene_ID, dependent),
     lin_drug_sensitivity %>% dplyr::select(cell_ID, gene_ID, sensitive),
     by = c("cell_ID", "gene_ID")
     ) %>%
