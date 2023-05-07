@@ -82,6 +82,10 @@ then
     curl -J -O -L "https://figshare.com/ndownloader/files/38357438"
     # 22Q4 Gene Dependency
     curl -J -O -L "https://figshare.com/ndownloader/files/38357387"
+    # 22Q4 Gene Effect
+    curl -J -O -L "https://figshare.com/ndownloader/files/38357390"
+    # 22Q4 README
+    curl -J -O -L "https://figshare.com/ndownloader/files/38357510"
     cd "$CUR_DIR"
     #-------------------------------------------------------------------------
 fi

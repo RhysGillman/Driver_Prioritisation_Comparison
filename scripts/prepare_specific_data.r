@@ -16,7 +16,9 @@ option_list = list(
   make_option(c("-n", "--network"), type="character", default="STRINGv11", 
               help="network to use", metavar ="Network"),
   make_option(c("-c", "--confidence"), type="double", default=0.4, 
-              help="lower bound confidence threshold to keep network edges, value between 0 and 1", metavar ="Confidence")
+              help="lower bound confidence threshold to keep network edges, value between 0 and 1", metavar ="Confidence"),
+  make_option(c("-g", "--goldstandard"), type="character", default="all_gold_standards_11.csv", 
+              help="name of gold standard sensitive genes file to be used", metavar ="Confidence")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -398,7 +400,7 @@ CCLE_copy_number_corrected <- round(CCLE_copy_number_corrected,0)
 # Gold Standards
 #########################
 
-gold_standards <- read_csv("validation_data/all_gold_standards.csv")
+gold_standards <- read_csv("validation_data/all_gold_standards_11.csv")
 
 
 #########################
@@ -627,3 +629,14 @@ gold_standards_summary <- gold_standards %>%
 write_csv(gold_standards_summary, paste0(SUMMARY_DIR,"/gold_standards_summary.csv"))
 
 rm(gold_standards_summary)
+
+
+
+test <- read_csv("validation_data/all_gold_standards_11.csv") %>%
+  group_by(lineage,cell_ID) %>%
+  summarise(total = n(), drug_sensitive = sum(sensitive, na.rm = T), gene_dependent = sum(dependent, na.rm = T)) %>%
+  group_by(lineage) %>%
+  summarise(mean_total = mean(total),
+            mean_drug_sensitive = mean(drug_sensitive),
+            mean_gene_dependent = mean(gene_dependent)
+  )

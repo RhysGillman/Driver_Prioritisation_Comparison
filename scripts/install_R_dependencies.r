@@ -3,7 +3,10 @@ packages <- c(
     "tidyverse",
     "ggrepel",
     "optparse",
-    "BiocManager"
+    "BiocManager",
+    "snowfall",
+    "data.table",
+    "maxstat"
 )
 
 # Install packages not yet installed
