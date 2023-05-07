@@ -13,31 +13,42 @@ suppressPackageStartupMessages (library(data.table, quietly = T))
 
 # Handling input arguments
 option_list = list(
-  make_option(c("-l", "--local_threshold"), type="double", default=2.0, 
+  make_option(c("-l", "--local_alpha"), type="double", default=0.1, 
               help="Local (within a cell type) z-score threshold to be used (default = 2.0)", metavar ="Local Z-score Threshold"),
-  make_option(c("-g", "--global_threshold"), type="double", default=2.0, 
+  make_option(c("-g", "--global_alpha"), type="double", default=0.1, 
               help="Global (including all cell types) z-score threshold to be used (default = 2.0)", metavar ="Global Z-score Threshold")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
 
-local_th <- opt$local_threshold
-global_th <- opt$global_threshold
+local_alpha <- opt$local_alpha
+global_alpha <- opt$global_alpha
 
 #############################
 # Functions
 ###############################
 
-get_z_scores <- function(Matrix){
-  Sd   <- apply(Matrix, 2, function(x) sd(x, na.rm=T))
-  Mean <- apply(Matrix, 2, function(x) mean(x, na.rm=T))
-  centered <- suppressWarnings(t(t(Matrix) - Mean))
-  z_scores <- suppressWarnings(t(t(centered) / Sd))
-  return(z_scores)
+# Initially found outliers based on z-score thresholds
+# Problematically, this approach meant that the "most outlying" cells were always detected as outliers
+# Changed to GESD (below) to allow for statistical testing for outliers
+
+#get_z_scores <- function(Matrix){
+#  Sd   <- apply(Matrix, 2, function(x) sd(x, na.rm=T))
+#  Mean <- apply(Matrix, 2, function(x) mean(x, na.rm=T))
+#  centered <- suppressWarnings(t(t(Matrix) - Mean))
+#  z_scores <- suppressWarnings(t(t(centered) / Sd))
+#  return(z_scores)
+#}
+
+# Applying Generalized Extreme Studentized Deviate (GEDS) Test
+# R implementation taken from https://github.com/raunakms/GESD
+# runGESD.R
+source("scripts/runGESD.R")
+
+get_outliers <- function(Matrix, alpha){
+  result <- apply(Matrix, 2, function(x) gesd(x, alpha = alpha, value.zscore = "NO", r = nrow(Matrix)/2))
 }
-
-
 
 #############################
 # Get cell list
@@ -100,11 +111,30 @@ gene_effect <- gene_effect[!duplicated(colnames(gene_effect))]
 gene_effect <- gene_effect[colnames(gene_effect) %in% genes]
 
 
-gene_effect_global_z <- get_z_scores(gene_effect) %>%
-  as.data.frame() %>%
+gene_effect_global_outliers <- gene_effect %>%
+  # First adding a row of gene_effect means for each gene across the cells
+  rbind(
+    colMeans(gene_effect, na.rm = T) %>% 
+      matrix(nrow = 1, dimnames = list("global_gene_effect_mean",colnames(gene_effect)))
+  ) %>%
+  # Transposing data
   rownames_to_column("cell_ID") %>%
-  pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "global_z") %>%
-  mutate(global_outlier = global_z < -global_th)
+  data.table::transpose(make.names = "cell_ID", keep.names = "gene_ID") %>%
+  pivot_longer(cols = -c(gene_ID, global_gene_effect_mean), names_to = "cell_ID", values_to = "gene_effect") %>%
+  # Then joining with z-scores and calculated outliers
+  inner_join(
+    get_outliers(gene_effect,global_alpha) %>%
+    as.data.frame() %>%
+    slice(-1) %>%
+    rownames_to_column("cell_ID") %>%
+    pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "global_outlier_rank") %>%
+    mutate(global_outlier = global_outlier_rank > 0),
+    by = c("gene_ID", "cell_ID")
+  ) %>%
+  # Defining dependent genes as outliers with values < mean
+  mutate(global_dependent = ifelse(global_outlier & gene_effect < global_gene_effect_mean, TRUE, FALSE))
+
+
 
 #ggplot(gene_effect_global_z, aes(x=z)) +
 #  geom_density() +
@@ -190,13 +220,29 @@ GDSC <- GDSC %>%
   pivot_wider(names_from = "target_ID", values_from = "LN_IC50") %>%
   column_to_rownames("cell_ID")
 
-GDSC_global_z <- get_z_scores(GDSC) %>%
-  as.data.frame() %>%
+GDSC_global_outliers <- GDSC %>%
+  # First adding a row of gene_effect means for each gene across the cells
+  rbind(
+    colMeans(GDSC, na.rm = T) %>% 
+      matrix(nrow = 1, dimnames = list("global_LN_IC50_mean",colnames(GDSC)))
+  ) %>%
+  # Transposing data
   rownames_to_column("cell_ID") %>%
-  pivot_longer(cols = -cell_ID, names_to = "target_ID", values_to = "global_z") %>%
-  mutate(global_outlier = global_z < -global_th) %>%
-  separate(target_ID, into = c("dataset", "drug_name", "gene_ID"))
-
+  data.table::transpose(make.names = "cell_ID", keep.names = "target_ID") %>%
+  pivot_longer(cols = -c(target_ID, global_LN_IC50_mean), names_to = "cell_ID", values_to = "LN_IC50") %>%
+  # Then joining with z-scores and calculated outliers
+  inner_join(
+    get_outliers(GDSC,global_alpha) %>%
+      as.data.frame() %>%
+      slice(-1) %>%
+      rownames_to_column("cell_ID") %>%
+      pivot_longer(cols = -cell_ID, names_to = "target_ID", values_to = "global_outlier_rank") %>%
+      mutate(global_outlier = global_outlier_rank > 0),
+    by = c("target_ID", "cell_ID")
+  ) %>%
+  separate(target_ID, into = c("dataset", "drug_name", "gene_ID")) %>%
+  # Defining sensitive genes as outliers with values < mean
+  mutate(global_sensitive = ifelse(global_outlier & LN_IC50 < global_LN_IC50_mean, TRUE, FALSE))
 
 
 for(lin in sort(unique(CCLE_sample_info$lineage))){
@@ -233,30 +279,30 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
     lin_gene_effect <- lin_gene_effect_matrix %>%
       # First adding a row of gene_effect means for each gene across the cells
       rbind(
-        colMeans(lin_gene_effect_matrix) %>% 
-          matrix(nrow = 1, dimnames = list("gene_effect_mean",colnames(lin_gene_effect_matrix)))
+        colMeans(lin_gene_effect_matrix, na.rm = T) %>% 
+          matrix(nrow = 1, dimnames = list("local_gene_effect_mean",colnames(lin_gene_effect_matrix)))
         ) %>%
       # Transposing data
       rownames_to_column("cell_ID") %>%
       data.table::transpose(make.names = "cell_ID", keep.names = "gene_ID") %>%
-      pivot_longer(cols = -c(gene_ID, gene_effect_mean), names_to = "cell_ID", values_to = "gene_effect") %>%
+      pivot_longer(cols = -c(gene_ID, local_gene_effect_mean), names_to = "cell_ID", values_to = "gene_effect") %>%
       # Then joining with z-scores and calculated outliers
       inner_join(
-        # Sqrt data to force normal distribution
-        get_z_scores(lin_gene_effect_matrix) %>%
+        get_outliers(lin_gene_effect_matrix,local_alpha) %>%
           as.data.frame() %>%
+          slice(-1) %>%
           rownames_to_column("cell_ID") %>%
-          pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "local_z") %>%
-          mutate(local_outlier = local_z < -local_th),
+          pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "local_outlier_rank") %>%
+          mutate(local_outlier = local_outlier_rank > 0),
         by = c("gene_ID", "cell_ID")
       ) %>%
-      # Defining outliers as dependent genes as long as their dependency score is > 0.5
-      mutate(dependent = ifelse(local_outlier & gene_effect < -1, TRUE, FALSE)) %>%
-      dplyr::select(cell_ID, gene_ID, gene_effect, gene_effect_mean, local_z, local_outlier, dependent)
+      # Defining dependent genes as outliers with values < mean
+      mutate(dependent = ifelse(local_outlier & gene_effect < local_gene_effect_mean, TRUE, FALSE)) %>%
+      dplyr::select(cell_ID, gene_ID, gene_effect, local_gene_effect_mean, local_outlier_rank, local_outlier, dependent)
     
-    if(global_th != FALSE){
+    if(global_alpha != FALSE){
       lin_gene_effect <- lin_gene_effect %>%
-        left_join(gene_effect_global_z, by = c("cell_ID","gene_ID")) %>%
+        left_join(gene_effect_global_outliers, by = c("cell_ID","gene_ID","gene_effect")) %>%
         mutate(dependent = ifelse(global_outlier, TRUE, dependent))
       
     }
@@ -285,33 +331,34 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
       
       # First getting original sentitivty and gene-wise sentitivty means
       rbind(colMeans(lin_GDSC_matrix, na.rm = T) %>% 
-              matrix(nrow = 1, dimnames = list("IC50_mean",colnames(lin_GDSC_matrix)))
+              matrix(nrow = 1, dimnames = list("local_IC50_mean",colnames(lin_GDSC_matrix)))
             ) %>%
       # Transposing data
       rownames_to_column("cell_ID") %>%
       data.table::transpose(make.names = "cell_ID", keep.names = "target_ID") %>%
-      pivot_longer(cols = -c(target_ID, IC50_mean), names_to = "cell_ID", values_to = "IC50") %>%
+      pivot_longer(cols = -c(target_ID, local_IC50_mean), names_to = "cell_ID", values_to = "IC50") %>%
       # Then joining with z-scores and calculated outliers
       inner_join(
-        get_z_scores(lin_GDSC_matrix) %>%
+        get_outliers(lin_GDSC_matrix,local_alpha) %>%
           as.data.frame() %>%
+          slice(-1) %>%
           rownames_to_column("cell_ID") %>%
-          pivot_longer(cols = -cell_ID, names_to = "target_ID", values_to = "local_z") %>%
-          mutate(local_outlier = local_z < -local_th),
+          pivot_longer(cols = -cell_ID, names_to = "target_ID", values_to = "local_outlier_rank") %>%
+          mutate(local_outlier = local_outlier_rank > 0),
         by = c("target_ID", "cell_ID")
       ) %>%
-      mutate(IC50 = round(exp(IC50), 2), IC50_mean = round(exp(IC50_mean), 2)) %>%
-      # Defining outliers as sensitive
-      mutate(sensitive = ifelse(local_outlier, TRUE, FALSE)) %>%
-      dplyr::select(cell_ID, target_ID, IC50, IC50_mean, local_z, local_outlier, sensitive) %>%
+      #mutate(IC50 = round(exp(IC50), 2), local_IC50_mean = round(exp(local_IC50_mean), 2)) %>%
+      # Defining sensitive genes as outliers with values < mean
+      mutate(sensitive = ifelse(local_outlier & IC50 < local_IC50_mean, TRUE, FALSE)) %>%
       separate(target_ID, into = c("dataset", "drug_name", "gene_ID")) %>%
-      relocate(dataset)
+      dplyr::select(dataset, cell_ID, drug_name, gene_ID, IC50, local_IC50_mean, local_outlier_rank, local_outlier, sensitive)
     
-    if(global_th != FALSE){
+    
+    if(global_alpha != FALSE){
       
       lin_drug_sensitivity <- lin_drug_sensitivity %>%
-        left_join(GDSC_global_z, by = c("cell_ID","gene_ID")) %>%
-        mutate(sensitive = ifelse(global_outlier, TRUE, sensitive))
+        left_join(GDSC_global_outliers, by = c("cell_ID","gene_ID")) %>%
+        mutate(sensitive = ifelse(global_sensitive, TRUE, sensitive))
 
     }
     
@@ -371,7 +418,7 @@ gold_standards <- gold_standards %>%
          ) %>%
   unique()
   
-write_csv(gold_standards, "validation_data/all_gold_standards.csv")
+write_csv(gold_standards, paste0("validation_data/all_gold_standards_",substr(local_alpha,3,4),substr(global_alpha,3,4), ".csv"))
 
 
 
@@ -395,7 +442,7 @@ summary <- gold_standards %>%
             mean_gene_dependent_percentile_genes = mean(gene_dependent)/length(total_genes)*100, 
             mean_drug_sensitive_percentile_genes = mean(drug_sensitive)/length(total_genes)*100)
 
-write_csv(summary,"validation_data/summary_gold_standards.csv")
+write_csv(summary,paste0("validation_data/summary_gold_standards_",substr(local_alpha,3,4),substr(global_alpha,3,4), ".csv"))
 
 test <- get_z_scores(sqrt(dependency[lineage_cells$cell_ID,])) %>%
   as.data.frame() %>%
@@ -445,3 +492,17 @@ test <- get_z_scores(sqrt(dependency[lineage_cells$cell_ID,])) %>%
 
 ggplot(test, aes(x=z)) +
   geom_density()
+
+source("scripts/original_runGESD.R")
+rnames <- paste("R",c(1:10),sep="")
+cnames <- paste("C",c(1:20),sep="")
+mat <- matrix(rexp(200), 10, dimnames=list(rnames,cnames))
+print(get_outliers(mat, 0.05))
+mat[1,1] <- NA
+print(get_outliers(mat, 0.05))
+source("scripts/runGESD.R")
+print(get_outliers(mat, 0.05))
+mat[1:10,1] <- NA
+print(get_outliers(mat, 0.05))
+
+GD
