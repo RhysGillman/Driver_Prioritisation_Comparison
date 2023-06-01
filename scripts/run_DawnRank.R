@@ -27,6 +27,8 @@ cell_type <- opt$celltype
 # Functions
 #############################
 
+# Scripts come from https://github.com/MartinFXP/DawnRank
+
 for(s in list.files("scripts/DawnRank/")){
   source(paste0("scripts/DawnRank/",s))
 }
