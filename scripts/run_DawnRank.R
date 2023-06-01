@@ -133,9 +133,11 @@ res_df <- res_df %>%
 #############################
 # Save Result
 #############################
+if(!dir.exists(paste0("results/CCLE_",network_choice,"/DawnRank"))){
+  dir.create(paste0("results/CCLE_",network_choice,"/DawnRank"))
+}
 
-
-write_csv(res_df, paste0("results/CCLE_",network_choice,"/DawnRank_",cell_type,".csv"))
+write_csv(res_df, paste0("results/CCLE_",network_choice,"/DawnRank/",cell_type,".csv"))
 
 
 
