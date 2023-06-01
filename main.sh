@@ -32,13 +32,16 @@ Help()
 # Set Defaults
 
 test_mode=0
+config_mode=0
 
 # Process Input Options
-while getopts ":hfq" option; do
+while getopts ":hcfq" option; do
     case $option in
         h) # display Help
             Help
             exit;;
+        c) #Config mode
+            config_mode=1;;
         f) # title
             ;;
         q) # title
@@ -50,6 +53,29 @@ while getopts ":hfq" option; do
             exit;;
    esac
 done
+
+
+############################################################
+# Read Config File                                         #
+############################################################
+
+if (($config_mode==1))
+then
+  source config.sh
+fi
+
+
+############################################################
+# Setup Directories                                        #
+############################################################
+
+mkdir -p results/CCLE_$network_choice
+
+
+############################################################
+# Run                                                       #
+############################################################
+
 
 if (($test_mode==1))
 then
