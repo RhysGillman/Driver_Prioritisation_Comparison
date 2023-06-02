@@ -12,7 +12,15 @@ analyze_PRODIGY_results<-function(all_patients_scores)
 	for(j in 1:length(libraries)){
 	try({library(libraries[j],character.only=T)})
 	}
-	if(class(all_patients_scores) == "matrix"){ all_patients_scores = list(all_patients_scores) }
+
+	# Note, below code is modified by Rhys Gillman
+
+	# Below code no longer works as of R4.0.0
+	#if(class(all_patients_scores) == "matrix"){ all_patients_scores = list(all_patients_scores) }
+	# Discovered that this also breaks, seems to be if enriched pathways aren't found
+	#if(inherits(all_patients_scores, "matrix")){ all_patients_scores = list(all_patients_scores) }
+	# Instead, just checking whether it is already a list, and if not, making it one
+	if(!inherits(all_patients_scores, "list")){ all_patients_scores = list(all_patients_scores) }
 	for(i in 1:length(all_patients_scores))
 	{	
 		all_patients_scores[[i]][which(is.na(all_patients_scores[[i]]))] = 0
