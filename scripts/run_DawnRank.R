@@ -68,7 +68,7 @@ network <-  fread(paste0("validation_data/CCLE_",network_choice,"/network_direct
   mutate_all(~replace_na(., 0)) %>%
   as.matrix()
 
-genes <- gene_list <- Reduce(intersect, list(
+genes <- Reduce(intersect, list(
   rownames(rna),
   rownames(mutation),
   rownames(network),
@@ -106,7 +106,10 @@ all(rownames(rna) == rownames(mutation))
 all(colnames(rna) == colnames(mutation))
 
 for(sample in samples){
-  print(sample)
+  
+  message(paste0("Beginning DawnRank analysis for sample: ", sample, " (", which(samples==sample), " of ", length(samples), ")"))
+  
+  
   tumour_rna <- rna[,sample] %>% as.matrix()
   colnames(tumour_rna) <- sample
   normal_rna <- rna[,samples[samples != sample]]
@@ -128,7 +131,7 @@ res_df <- res_df %>%
   # Converting PercentRank into ordinal gene ranks
   arrange(desc(PercentRank)) %>%
   group_by(cell_ID) %>%
-  mutate(rank = row_number()) %>%
+  mutate(rank = row_number(), lineage = cell_type) %>%
   dplyr::select(-PercentRank) %>%
   arrange(cell_ID)
 
