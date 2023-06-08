@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use warnings;
 
-my ($data_dir, $network_type, $script_dir) = @ARGV;
+my ($data_dir, $network_type, $script_dir, $network) = @ARGV;
 
 require "$script_dir/Construct_network.pl";
 my %gene_to_index;
@@ -13,7 +13,7 @@ if(@ARGV > 1){
 	construct_netbox_network($data_dir, \@index_to_gene, \%gene_to_index, \@connections, $script_dir);
     }
     if($network_type eq "DRIVER_NET"){
-	construct_driver_net_network(\@index_to_gene, \%gene_to_index, \@connections, $script_dir);
+	construct_driver_net_network(\@index_to_gene, \%gene_to_index, \@connections, $script_dir, $network);
     }
 
     print STDERR "------ nb gene in network ".(@index_to_gene)."\n";

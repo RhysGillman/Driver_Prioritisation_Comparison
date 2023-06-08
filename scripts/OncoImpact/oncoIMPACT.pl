@@ -71,10 +71,11 @@ unless(-e $config{'outDir'} && -w $config{'outDir'}){
 	print STDERR "Aborting! Output directory does not exist or is unwritable. Please check the config file and try again.\n";
 	exit 1;
 }
-unless(-s $config{'scriptDir'}){
-	print STDERR "Aborting! Scripts directory does not exist or is empty. Please check the config file and try again.\n";
-	exit 1;
-}
+# Rhys Note, -s might give different results between windows and linux.
+#unless(-s $config{'scriptDir'}){
+#	print STDERR "Aborting! Scripts directory does not exist or is empty. Please check the config file and try again.\n";
+#	exit 1;
+#}
 unless ($config{'numThreads'} =~ /^\d+?$/) {
     print STDERR "Aborting! numThreads is not given as an integer. Please check the config file and try again.\n";
     exit 1;
@@ -387,7 +388,7 @@ sub merge_and_clean {
 
 sub run_oncoIMPACT {
 	my ($sysCall, @temp);
-	$sysCall = "$config{'scriptDir'}/pathway_ana.pl ALL $config{'outDir'}/COMPLETE_SAMPLES $config{'dataType'} $config{'numThreads'} DRIVER_NET $config{'scriptDir'}";
+	$sysCall = "$config{'scriptDir'}/pathway_ana.pl ALL $config{'outDir'}/COMPLETE_SAMPLES $config{'dataType'} $config{'numThreads'} DRIVER_NET $config{'scriptDir'} $config{'network'}";
 	$sysCall .= " TEST " if $config{'testMode'}; 
 	$sysCall .= "&> $config{'outDir'}/run.log";
 	print STDERR "$sysCall\n";

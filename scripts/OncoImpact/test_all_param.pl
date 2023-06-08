@@ -8,7 +8,7 @@ my (
     $min_log2_fold_change_threshold, $max_log2_fold_change_threshold,
     $min_hub_threshold, $max_hub_threshold,
     $flag_all_sample_used,            $nb_random_sample,
-    $nb_process,                     $script_dir, $test_case
+    $nb_process,                     $script_dir, $network, $test_case
 ) = @ARGV;
 
 my @hub_th;
@@ -90,7 +90,7 @@ sub push_call {
 		#print STDERR " ********** $file_res\n";<STDIN>;
 
 		$exe =
-"$script_dir/10_Cluster_Algo_fast.pl $data_dir $network_type 1000000000 $hub_th[$j] 0 $log2_fold_change_threshold $dir_res $flag_real $script_dir 2> /dev/null";
+"$script_dir/10_Cluster_Algo_fast.pl $data_dir $network_type 1000000000 $hub_th[$j] 0 $log2_fold_change_threshold $dir_res $flag_real $script_dir $network 2> /dev/null";
 
 		if ( $num_file == 0 || $nb_lines > $nb_max_line ) {
 			close(OUT) if ( $num_file != 0 );

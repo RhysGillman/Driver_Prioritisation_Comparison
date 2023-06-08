@@ -2,7 +2,7 @@
 use warnings;
 
 my ( $data_dir, $network_type, $nb_real_sample_used, $nb_random_sample,
-	$flag_mutation_fixed, $out_dir, $script_dir, $seed )
+	$flag_mutation_fixed, $out_dir, $script_dir, $network, $seed )
   = @ARGV;
 
 require "$script_dir/Construct_network.pl";
@@ -18,7 +18,7 @@ if ( $network_type eq "NETBOX" ) {
 }
 if ( $network_type eq "DRIVER_NET" ) {
 	construct_driver_net_network( \@index_to_gene, \%gene_to_index,
-		\@connections, $script_dir );
+		\@connections, $script_dir, $network );
 }
 
 if($seed != -1){

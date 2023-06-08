@@ -9,7 +9,7 @@ my (
 	$nb_random_sample, $THE_GENE_ID,
 	$THE_GENE_STATUS,  $THE_GENE_FREQ_EXPLAINED,
 	$out_file, $out_file_table,   $FAST_CALL_FLAG,
-	$script_dir, $seed
+	$script_dir, $network, $seed
 ) = @ARGV;
 
 #$dir_TCGA_sample -> directory where the data are organize
@@ -47,7 +47,7 @@ if ( $network_type eq "NETBOX" ) {
 }
 if ( $network_type eq "DRIVER_NET" ) {
 	construct_driver_net_network( \@index_to_gene, \%gene_to_index,
-		\@connections, $script_dir );
+		\@connections, $script_dir, $network );
 }
 
 # 4. Construct the set of explained genes for each samples

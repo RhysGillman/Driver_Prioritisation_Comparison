@@ -1,9 +1,8 @@
 # Cell type to analyse
 # Options --
   # ALL - Loops through all cell types present in the data files
-  
-cell_type="ALL"
 
+cell_type="ALL"
 
 ########################
 # Gene Interaction Network
@@ -37,6 +36,23 @@ local_alpha=0.1
   # Value between 0 and 1 (Default is 0.1)
 
 global_alpha=0.1
+
+
+
+# Link Directory
+# Some parts of this code struggles to run with complex file paths containing spaces, special characters, etc. If this is the case, 
+# the user may optionally create a symbolic link to a new location from which to run the algorithms
+# Options --
+  # FALSE - do not create link
+  # File path to desired link location
+
+use_symbolic_link=true
+link_location="/c/Users/jc428796/Driver_Prioritisation_link"
+
+
+
+
+windows_mode=true
 
 
 

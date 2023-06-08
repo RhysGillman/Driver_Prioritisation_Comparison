@@ -4,7 +4,7 @@ use warnings;
 my (
 	$data_dir, $network_type, $depth_th,
 	$hub_th,   $nb_joker,     $fold_change_threshold,
-	$out_dir,  $flag_real,    $script_dir
+	$out_dir,  $flag_real,    $script_dir, $network
 ) = @ARGV;
 
 #$flag_real = 0;
@@ -41,7 +41,7 @@ if ( $network_type eq "NETBOX" ) {
 }
 if ( $network_type eq "DRIVER_NET" ) {
 	construct_driver_net_network( \@index_to_gene, \%gene_to_index,
-		\@connections, $script_dir );
+		\@connections, $script_dir, $network );
 }
 
 # 4. Construct the set of explained genes for each samples

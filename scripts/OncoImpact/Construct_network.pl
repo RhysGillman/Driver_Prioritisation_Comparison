@@ -2,9 +2,9 @@ use warnings;
 #use strict;
 
 sub construct_driver_net_network{
-    my ($index_to_gene, $gene_to_index, $connections, $script_dir) = @_;
+    my ($index_to_gene, $gene_to_index, $connections, $script_dir, $network) = @_;
     #print STDERR " *** BEGIN DRIVER_NET NETWORK CONSTRUCTION\n";
-    $network = "$script_dir/network_FIsInGene_041709.txt";
+    $network = $network;
     construct_network_pair($network, $index_to_gene, $gene_to_index, $connections);
     #print STDERR " *** END DRIVER_NET NETWORK CONSTRUCTION\n";
 }

@@ -2,7 +2,7 @@
 use warnings;
 
 #If FAST_CALL_FLAG is true: the method stop if at least one random sample have a higher frequency than the real frequency: $THE_GENE_FREQ_EXPLAINED
-my ($sample_dir, $main_result_dir, $network_type, $depth_th, $hub_th, $log2_fold_change_threshold, $explained_freq_threshold, $nb_random_test, $nb_process, $FAST_CALL_FLAG, $script_dir, $seed) = @ARGV;
+my ($sample_dir, $main_result_dir, $network_type, $depth_th, $hub_th, $log2_fold_change_threshold, $explained_freq_threshold, $nb_random_test, $nb_process, $FAST_CALL_FLAG, $script_dir, $network, $seed) = @ARGV;
 
 require "$script_dir/Construct_network.pl";
 
@@ -19,7 +19,7 @@ if($network_type eq "NETBOX"){
     construct_netbox_network($sample_dir, \@index_to_gene, \%gene_to_index, \@connections, $script_dir);
 }
 if($network_type eq "DRIVER_NET"){
-    construct_driver_net_network(\@index_to_gene, \%gene_to_index, \@connections, $script_dir);
+    construct_driver_net_network(\@index_to_gene, \%gene_to_index, \@connections, $script_dir, $network);
 }
 
 #Get the sample analysed
@@ -129,7 +129,7 @@ if($compute_pvalue){
 		else{
 		    #Run the construction of the table
 		    #$FAST_CALL_FLAG = 0;
-		    $exe = "$script_dir/10_Cluster_Algo_pvalue_table.pl $sample_dir $network_type $depth_th $hub_th 0 $log2_fold_change_threshold $nb_random_test $g $d $count_explained $pvalue_file $out_file_table  $FAST_CALL_FLAG $script_dir $seed 2> /dev/null";
+		    $exe = "$script_dir/10_Cluster_Algo_pvalue_table.pl $sample_dir $network_type $depth_th $hub_th 0 $log2_fold_change_threshold $nb_random_test $g $d $count_explained $pvalue_file $out_file_table  $FAST_CALL_FLAG $script_dir $network $seed 2> /dev/null";
 		    print $OUT $exe."\n";
 		}
 	    }

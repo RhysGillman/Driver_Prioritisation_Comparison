@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use warnings;
 
-my ($data_dir, $module_file, $network_type, $fold_change_threshold, $large_data_set_driver_stats_file, $out_dir, $script_dir) = @ARGV;
+my ($data_dir, $module_file, $network_type, $fold_change_threshold, $large_data_set_driver_stats_file, $out_dir, $script_dir, $network) = @ARGV;
 
 require "$script_dir/Construct_network.pl";
 
@@ -52,7 +52,7 @@ if($network_type eq "NETBOX"){
     construct_netbox_network($data_dir, \@index_to_gene, \%gene_to_index, \@connections, $script_dir);
 }
 if($network_type eq "DRIVER_NET"){
-    construct_driver_net_network(\@index_to_gene, \%gene_to_index, \@connections, $script_dir);
+    construct_driver_net_network(\@index_to_gene, \%gene_to_index, \@connections, $script_dir, $network);
 }
 
 

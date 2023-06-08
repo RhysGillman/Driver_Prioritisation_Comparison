@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use warnings;
 
-my ( $step, $data_dir, $data_type, $nb_thread, $network_type, $script_dir, $test_case) = @ARGV;
+my ( $step, $data_dir, $data_type, $nb_thread, $network_type, $script_dir, $network, $test_case) = @ARGV;
 
 print STDERR " **** pathway_ana step:$step data_dir:$data_dir nb_thread:$nb_thread network_type:$network_type script_dir:$script_dir test_case:$test_case\n";
 
@@ -102,7 +102,7 @@ $sample_stats_file = "$sample_stats_dir/basic_stats.dat";
 if ($RUN_STATS) {
     
     run_exe("mkdir $sample_stats_dir") unless ( -d $sample_stats_dir );
-    $exe = "$basic_stats_path $data_dir $network_type $script_dir >  $sample_stats_file 2> /dev/null";
+    $exe = "$basic_stats_path $data_dir $network_type $script_dir $network >  $sample_stats_file 2> /dev/null";
     run_exe($exe);
 }
 
@@ -120,9 +120,22 @@ $js_file = "$test_param_dir\_js.dat";
 
 if ($RUN_TEST_PARAM) {
 
-	$NB_GENE_IN_NETWORK = 0;
-	$NB_GENE_IN_NETWORK = 9448 if ( $network_type eq "DRIVER_NET" );
-	$NB_GENE_IN_NETWORK = 9261 if ( $network_type eq "NETBOX" );
+	#$NB_GENE_IN_NETWORK = 0;
+	#$NB_GENE_IN_NETWORK = 9448 if ( $network_type eq "DRIVER_NET" );
+	#$NB_GENE_IN_NETWORK = 9261 if ( $network_type eq "NETBOX" );
+	
+	my %genes;
+    open(FILE, "$network");
+      while(<FILE>){
+        chomp;
+        my ($gene_1, $gene_2) = split("\t");
+        $genes{$gene_1} = 1;
+        $genes{$gene_2} = 2;
+    }
+    # Get the count of unique gene names
+    my $NB_GENE_IN_NETWORK = scalar keys %genes;
+    
+    print "Total number of unique genes: $NB_GENE_IN_NETWORK\n";
 
 	
 #to compute the min and max log fold change that will be in the interval [1 - 3] with op of 0.5
@@ -182,14 +195,14 @@ if ($RUN_TEST_PARAM) {
 	if ( !-d $test_param_dir ) {
 	    `mkdir $test_param_dir`;
 	    print STDERR "Parameter Estimation\n";
-	    $exe = "$sim_path $data_dir $network_type $nb_sample_used $NB_SIMULATED_DATA_SET_PARAMETER MUT_UNFIXED $test_param_dir $script_dir $SEED 2> /dev/null";
+	    $exe = "$sim_path $data_dir $network_type $nb_sample_used $NB_SIMULATED_DATA_SET_PARAMETER MUT_UNFIXED $test_param_dir $script_dir $network $SEED 2> /dev/null";
 	    run_exe($exe);
 	}
 	
 #2 Run the inference method with different parameters
 #this method do not re-run any the test of random/real sample that have been previously analysed (good in case of crash)
 	if ( !-e $js_file ) {
-	    $exe = "$test_param_path $test_param_dir $network_type $MIN_LOG2_FOLD_CHANGE_THRESHOLD $MAX_LOG2_FOLD_CHANGE_THRESHOLD $MIN_HUB_THRESHOLD $MAX_HUB_THRESHOLD $flag_all_sample_used $NB_SIMULATED_DATA_SET_PARAMETER $nb_thread $script_dir ";
+	    $exe = "$test_param_path $test_param_dir $network_type $MIN_LOG2_FOLD_CHANGE_THRESHOLD $MAX_LOG2_FOLD_CHANGE_THRESHOLD $MIN_HUB_THRESHOLD $MAX_HUB_THRESHOLD $flag_all_sample_used $NB_SIMULATED_DATA_SET_PARAMETER $nb_thread $script_dir $network";
 	    run_exe($exe);
 	    
 	    #exit;
@@ -248,12 +261,12 @@ if ($RUN_DYS_SIGNIFICANCE) {
 
 	print STDERR "Phenotype Significance\n";
 
-	$exe = "$cluster_algo_path $data_dir $network_type $best_depth_value $best_hub_value 0 $best_log2_fold_change $res_dir $script_dir 2> /dev/null";
+	$exe = "$cluster_algo_path $data_dir $network_type $best_depth_value $best_hub_value 0 $best_log2_fold_change $res_dir $script_dir $network 2> /dev/null";
 	run_exe($exe);
 
 	#Compute the significance
 	$FAST_CALL_FLAG = 1;
-	$exe            = "$phenotype_pvalue_path $data_dir $main_result_dir $network_type $best_depth_value $best_hub_value $best_log2_fold_change $EXPLAINED_FREQ_THRESHOLD $NB_SIMULATED_DATA_SET_PVALUE $nb_thread $FAST_CALL_FLAG $script_dir $SEED";
+	$exe            = "$phenotype_pvalue_path $data_dir $main_result_dir $network_type $best_depth_value $best_hub_value $best_log2_fold_change $EXPLAINED_FREQ_THRESHOLD $NB_SIMULATED_DATA_SET_PVALUE $nb_thread $FAST_CALL_FLAG $script_dir $network $SEED";
 	run_exe($exe);
 }
 
@@ -284,25 +297,25 @@ if ($RUN_DRIVER_INFEREANCE) {
     }
 
     print STDERR "Construct Module [ Stringent Mode ]\n";
-    $exe = "$module_inference_path DRIVER_SAMPLE $network_type $freq_gene 0.05 $best_depth_value $best_hub_value $res_dir/FINAL_MODULE_SAMPLE.dat $script_dir $data_dir,$res_dir/MODULE.dat";
+    $exe = "$module_inference_path DRIVER_SAMPLE $network_type $freq_gene 0.05 $best_depth_value $best_hub_value $res_dir/FINAL_MODULE_SAMPLE.dat $script_dir $network $data_dir,$res_dir/MODULE.dat";
     run_exe($exe);
     #
     print STDERR "Output Result -> $main_result_dir/GENE_LIST_SAMPLE\n";
     $gene_list_dir = "$main_result_dir/GENE_LIST_SAMPLE";
     run_exe("mkdir $gene_list_dir") unless ( -d $gene_list_dir );
     run_exe("cp $res_dir/FINAL_MODULE_SAMPLE.dat $gene_list_dir/FINAL_MODULE.dat");
-    $exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir 2> /dev/null";
+    $exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir $network 2> /dev/null";
     run_exe($exe);
     
     print STDERR "Construct Module [ Relaxed Mode ]\n";
-    $exe       = "$module_inference_path DRIVER_ALL  $network_type $freq_gene 0.05 $best_depth_value $best_hub_value $res_dir/FINAL_MODULE.dat $script_dir $data_dir,$res_dir/MODULE.dat";
+    $exe       = "$module_inference_path DRIVER_ALL  $network_type $freq_gene 0.05 $best_depth_value $best_hub_value $res_dir/FINAL_MODULE.dat $script_dir $network $data_dir,$res_dir/MODULE.dat";
     run_exe($exe);
     #
     print STDERR "Output Result -> $main_result_dir/GENE_LIST \n";
     $gene_list_dir = "$main_result_dir/GENE_LIST";
     run_exe("mkdir $gene_list_dir") unless ( -d $gene_list_dir );
     run_exe("cp $res_dir/FINAL_MODULE.dat $gene_list_dir/FINAL_MODULE.dat");
-    $exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir 2> /dev/null";
+    $exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir $network 2> /dev/null";
     run_exe($exe);
     
 }

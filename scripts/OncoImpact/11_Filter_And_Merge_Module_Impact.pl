@@ -4,7 +4,7 @@ use warnings;
 #use strict;
 #the last parameter are pair of directory containing sample data and the associated module file sperated by comma
 #in case of multiple pairs only the last one is outputed
-my ( $filter_type, $network_type, $explained_freq_file, $freq_threshold, $path_threshold, $hub_threshold, $out_file, $script_dir )  = @ARGV;
+my ( $filter_type, $network_type, $explained_freq_file, $freq_threshold, $path_threshold, $hub_threshold, $out_file, $script_dir, $network )  = @ARGV;
 
 #print STDERR " *** $script_dir\n";
 
@@ -52,7 +52,7 @@ if ( $network_type eq "NETBOX" ) {
 }
 if ( $network_type eq "DRIVER_NET" ) {
 	construct_driver_net_network( \@index_to_gene, \%gene_to_index,
-		\@connections, $script_dir );
+		\@connections, $script_dir, $network );
 }
 
 #Collect the fold change of each gene to compute the module impact
