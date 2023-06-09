@@ -1,8 +1,8 @@
 # prepare_all_gold_standards.r
 # This script prepares the gold standard sensitive genes
 # Gold standard sensitive genes are identified as the genes that a cell is particularly sensitive to losing relative to other cells of the same lineage
-# If static thresholds are supplied, also considers highly sensitive genes even if that cell is not an outlier
-# By default, static thresholds aren't used because many genes (average 235 per cell line) have max dependency score (1.000)
+# If global alpha is supplied, also considers highly sensitive genes even if that cell is not an outlier
+
 
 # Load Required Packages
 message("Loading Packages")
@@ -14,9 +14,9 @@ suppressPackageStartupMessages (library(data.table, quietly = T))
 # Handling input arguments
 option_list = list(
   make_option(c("-l", "--local_alpha"), type="double", default=0.1, 
-              help="Local (within a cell type) z-score threshold to be used (default = 2.0)", metavar ="Local Z-score Threshold"),
+              help="Local (within a cell type) alpha significance threshold to be used (default = 0.1)", metavar ="Local Alpha"),
   make_option(c("-g", "--global_alpha"), type="double", default=0.1, 
-              help="Global (including all cell types) z-score threshold to be used (default = 2.0)", metavar ="Global Z-score Threshold")
+              help="Global (including all cell types) alpha significance threshold to be used (default = 0.1)", metavar ="Global Alpha")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -418,7 +418,7 @@ gold_standards <- gold_standards %>%
          ) %>%
   unique()
   
-write_csv(gold_standards, paste0("validation_data/all_gold_standards_",substr(local_alpha,3,4),substr(global_alpha,3,4), ".csv"))
+write_csv(gold_standards, "validation_data/all_gold_standards.csv")
 
 
 
@@ -442,7 +442,7 @@ summary <- gold_standards %>%
             mean_gene_dependent_percentile_genes = mean(gene_dependent)/length(total_genes)*100, 
             mean_drug_sensitive_percentile_genes = mean(drug_sensitive)/length(total_genes)*100)
 
-write_csv(summary,paste0("validation_data/summary_gold_standards_",substr(local_alpha,3,4),substr(global_alpha,3,4), ".csv"))
+write_csv(summary,"summary_all_gold_standards.csv")
 
 test <- get_z_scores(sqrt(dependency[lineage_cells$cell_ID,])) %>%
   as.data.frame() %>%

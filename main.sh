@@ -75,6 +75,7 @@ then
   rm "$link_location/Driver_Prioritisation_Comparison_Pipeline"
   echo "Attempting to create link to $link_location"
   mkdir -p "$link_location"
+  # The below code is needed to add permissions for symoblic links when working in windows Git Bash
   if(("$windows_mode" == true));
     then
     export MSYS=winsymlinks:nativestrict
@@ -88,9 +89,6 @@ then
 
 fi
 
-
-
-
 ############################################################
 # Setup Directories                                        #
 ############################################################
@@ -99,20 +97,52 @@ mkdir -p results/CCLE_$network_choice
 
 
 ############################################################
-# Testing                                                  #
+# Download Data                                            #
 ############################################################
 
-
-if (($test_mode==1))
+if (($download_data==1))
 then
-    Rscript --vanilla "scripts/test.r"
+    bash scripts/download_data.sh -a
 fi
 
 ############################################################
-# Run OncoImpact                                          #
+# Prepare Data                                             #
 ############################################################
 
-echo "$SCRIPT_DIR"
+if (($prepare_data==1))
+then
+    Rscript --vanilla "scripts/choose_cells.r" -w $SCRIPT_DIR
+    Rscript --vanilla "scripts/prepare_all_gold_standards" -l $local_alpha -g $global_alpha
+    Rscript --vanilla "scripts/prepare_specific_data.r" -w $SCRIPT_DIR
+fi
 
-Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR"
-perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg
+
+############################################################
+# Run DawnRank                                             #
+############################################################
+
+if (($run_DawnRank==1))
+then
+    Rscript --vanilla "scripts/run_DawnRank.R" -n $network_choice -c $cell_type
+fi
+
+############################################################
+# Run PRODIGY                                              #
+############################################################
+
+if (($run_PRODIGY==1))
+then
+    Rscript --vanilla "scripts/run_PRODIGY.R" -n $network_choice -c $cell_type
+fi
+
+############################################################
+# Run OncoImpact                                           #
+############################################################
+
+if (($run_OncoImpact==1))
+then
+    Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type
+    perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg
+fi
+
+

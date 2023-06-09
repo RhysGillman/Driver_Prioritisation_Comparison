@@ -1,8 +1,10 @@
-# Cell type to analyse
-# Options --
-  # ALL - Loops through all cell types present in the data files
+########################
+# Download Data
+########################
 
-cell_type="ALL"
+# Downloads all required data to the /data directory. Set to 1 if the data needs to be downloaded.
+
+download_data=0
 
 ########################
 # Gene Interaction Network
@@ -17,6 +19,24 @@ network_choice="STRINGv11"
 # Options --
   # Value between 0 and 1. Everything above the threshold will be kept.
 network_conf_th=0.4
+
+########################
+# Prepare Data
+########################
+
+# Performs all re-formatting and filtering required after initial downloading of the data
+
+prepare_data=0
+
+########################
+# Cell Type
+########################
+
+# CCLE Cell type to analyse
+# Options --
+  # ALL - Loops through all cell types present in the data files
+
+cell_type="Liver"
 
 
 ########################
@@ -37,7 +57,25 @@ local_alpha=0.1
 
 global_alpha=0.1
 
+########################
+# Driver Algorithms
+########################
 
+# Indicate which algorithms to run
+# Options --
+  # 0 - Do not run
+  # 1 - Run
+
+run_DawnRank=0
+run_PRODIGY=0
+run_OncoImpact=0
+
+
+
+
+########################
+# Setup Symbolic Link
+########################
 
 # Link Directory
 # Some parts of this code struggles to run with complex file paths containing spaces, special characters, etc. If this is the case, 
@@ -48,8 +86,6 @@ global_alpha=0.1
 
 use_symbolic_link=true
 link_location="/c/Users/jc428796/Driver_Prioritisation_link"
-
-
 
 
 windows_mode=true

@@ -38,7 +38,8 @@ while getopts ":hacgds" option; do
         a) # download all data
             CCLE_download=1
             GDSC_download=1
-            DGI_download=1;;
+            DGI_download=1
+            STRINGv11_download=1;;
         c) # download CCLE Data
             CCLE_download=1;;
         g) # download GDSC Data
