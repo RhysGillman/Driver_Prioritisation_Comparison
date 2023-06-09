@@ -1,4 +1,4 @@
-# run_DawnRank.r
+# run_PRODIGY.R
 # This master scripts uses the scripts within scripts/DawnRank to run DawnRank on the validation data
 
 # Load Required Packages
