@@ -1,5 +1,5 @@
 #prepare_OncoImpact_data.R
-# This data prepares the input data to run OncoImpact and stores it in tmp/
+# This code prepares the input data to run OncoImpact and stores it in tmp/
 
 # Load Required Packages
 suppressPackageStartupMessages (library(optparse, quietly = T))

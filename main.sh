@@ -143,6 +143,17 @@ if (($run_OncoImpact==1))
 then
     Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type
     perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg
+    Rscript --vanilla "scripts/format_OncoImpact_results.R" -n $network_choice -c $cell_type
+    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/ANALYSIS
+    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/COMPLETE_SAMPLES
+    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/INCOMPLETE_SAMPLES
 fi
 
+############################################################
+# Run PersonaDrive                                         #
+############################################################
 
+if (($run_PersonaDrive==1))
+then
+    
+fi
