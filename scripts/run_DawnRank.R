@@ -133,7 +133,8 @@ res_df <- res_df %>%
   group_by(cell_ID) %>%
   mutate(rank = row_number(), lineage = cell_type) %>%
   dplyr::select(-PercentRank) %>%
-  arrange(cell_ID)
+  arrange(cell_ID) %>%
+  dplyr::select(lineage, cell_ID, driver = gene_ID, rank)
 
 #############################
 # Save Result

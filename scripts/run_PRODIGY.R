@@ -148,7 +148,7 @@ for(sample in samples){
   }
   
   
-  temp_res_df <- data.frame(lineage = cell_type, sample = sample, driver = res, rank = 1:length(res))
+  temp_res_df <- data.frame(lineage = cell_type, cell_ID = sample, driver = res, rank = 1:length(res))
   
   res_df <- rbind(res_df, temp_res_df)
 }
