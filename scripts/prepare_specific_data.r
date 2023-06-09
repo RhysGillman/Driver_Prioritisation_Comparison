@@ -16,9 +16,7 @@ option_list = list(
   make_option(c("-n", "--network"), type="character", default="STRINGv11", 
               help="network to use", metavar ="Network"),
   make_option(c("-c", "--confidence"), type="double", default=0.4, 
-              help="lower bound confidence threshold to keep network edges, value between 0 and 1", metavar ="Confidence"),
-  make_option(c("-g", "--goldstandard"), type="character", default="all_gold_standards_11.csv", 
-              help="name of gold standard sensitive genes file to be used", metavar ="Confidence")
+              help="lower bound confidence threshold to keep network edges, value between 0 and 1", metavar ="Confidence")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -400,7 +398,7 @@ CCLE_copy_number_corrected <- round(CCLE_copy_number_corrected,0)
 # Gold Standards
 #########################
 
-gold_standards <- read_csv("validation_data/all_gold_standards_11.csv")
+gold_standards <- read_csv("validation_data/all_gold_standards.csv")
 
 
 #########################

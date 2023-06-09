@@ -113,7 +113,7 @@ if (($prepare_data==1))
 then
     Rscript --vanilla "scripts/choose_cells.r" -w $SCRIPT_DIR
     Rscript --vanilla "scripts/prepare_all_gold_standards" -l $local_alpha -g $global_alpha
-    Rscript --vanilla "scripts/prepare_specific_data.r" -w $SCRIPT_DIR
+    Rscript --vanilla "scripts/prepare_specific_data.r" -w $SCRIPT_DIR -n $network_choice -c $network_conf_th
 fi
 
 
