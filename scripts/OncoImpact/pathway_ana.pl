@@ -7,7 +7,9 @@ print STDERR " **** pathway_ana step:$step data_dir:$data_dir nb_thread:$nb_thre
 
 
 $MAX_FRAC_DISREGULATED_GENE   = 0.5;
-$MIN_MEDIAN_DISREGULATED_GENE = 300;
+# Rhys note: removed this and added calculation later to make this 2.5% of the total gene number
+#$MIN_MEDIAN_DISREGULATED_GENE = 300;
+
 
 #$NB_SIMULATED_DATA_SET_PARAMETER = 100;
 #$NB_SIMULATED_DATA_SET_PVALUE    = 500;
@@ -102,7 +104,8 @@ $sample_stats_file = "$sample_stats_dir/basic_stats.dat";
 if ($RUN_STATS) {
     
     run_exe("mkdir $sample_stats_dir") unless ( -d $sample_stats_dir );
-    $exe = "$basic_stats_path $data_dir $network_type $script_dir $network >  $sample_stats_file 2> /dev/null";
+    #$exe = "$basic_stats_path $data_dir $network_type $script_dir $network >  $sample_stats_file 2> /dev/null";
+    $exe = "$basic_stats_path $data_dir $network_type $script_dir $network >  $sample_stats_file";
     run_exe($exe);
 }
 
@@ -136,6 +139,10 @@ if ($RUN_TEST_PARAM) {
     my $NB_GENE_IN_NETWORK = scalar keys %genes;
     
     print "Total number of unique genes: $NB_GENE_IN_NETWORK\n";
+    
+    $MIN_MEDIAN_DISREGULATED_GENE = 0.025*$NB_GENE_IN_NETWORK;
+    
+    print "Finding optimal prarmeters to give dysregulated genes > $MIN_MEDIAN_DISREGULATED_GENE and < $MAX_FRAC_DISREGULATED_GENE*$NB_GENE_IN_NETWORK";
 
 	
 #to compute the min and max log fold change that will be in the interval [1 - 3] with op of 0.5
@@ -195,7 +202,8 @@ if ($RUN_TEST_PARAM) {
 	if ( !-d $test_param_dir ) {
 	    `mkdir $test_param_dir`;
 	    print STDERR "Parameter Estimation\n";
-	    $exe = "$sim_path $data_dir $network_type $nb_sample_used $NB_SIMULATED_DATA_SET_PARAMETER MUT_UNFIXED $test_param_dir $script_dir $network $SEED 2> /dev/null";
+	    #$exe = "$sim_path $data_dir $network_type $nb_sample_used $NB_SIMULATED_DATA_SET_PARAMETER MUT_UNFIXED $test_param_dir $script_dir $network $SEED 2> /dev/null";
+	    $exe = "$sim_path $data_dir $network_type $nb_sample_used $NB_SIMULATED_DATA_SET_PARAMETER MUT_UNFIXED $test_param_dir $script_dir $network $SEED";
 	    run_exe($exe);
 	}
 	
@@ -213,7 +221,8 @@ if ($RUN_TEST_PARAM) {
 	    run_exe($exe);
 	    
 	    #compress the directory
-	    $exe = "tar -zcf $test_param_dir.tgz $test_param_dir 2> /dev/null";
+	    #$exe = "tar -zcf $test_param_dir.tgz $test_param_dir 2> /dev/null";
+	    $exe = "tar -zcf $test_param_dir.tgz $test_param_dir";
 	    run_exe($exe);    #<STDIN>;
 	}
 }
@@ -261,7 +270,8 @@ if ($RUN_DYS_SIGNIFICANCE) {
 
 	print STDERR "Phenotype Significance\n";
 
-	$exe = "$cluster_algo_path $data_dir $network_type $best_depth_value $best_hub_value 0 $best_log2_fold_change $res_dir $script_dir $network 2> /dev/null";
+	#$exe = "$cluster_algo_path $data_dir $network_type $best_depth_value $best_hub_value 0 $best_log2_fold_change $res_dir $script_dir $network 2> /dev/null";
+	$exe = "$cluster_algo_path $data_dir $network_type $best_depth_value $best_hub_value 0 $best_log2_fold_change $res_dir $script_dir $network";
 	run_exe($exe);
 
 	#Compute the significance
@@ -304,7 +314,8 @@ if ($RUN_DRIVER_INFEREANCE) {
     $gene_list_dir = "$main_result_dir/GENE_LIST_SAMPLE";
     run_exe("mkdir $gene_list_dir") unless ( -d $gene_list_dir );
     run_exe("cp $res_dir/FINAL_MODULE_SAMPLE.dat $gene_list_dir/FINAL_MODULE.dat");
-    $exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir $network 2> /dev/null";
+    #$exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir $network 2> /dev/null";
+    $exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir $network";
     run_exe($exe);
     
     print STDERR "Construct Module [ Relaxed Mode ]\n";
@@ -315,7 +326,8 @@ if ($RUN_DRIVER_INFEREANCE) {
     $gene_list_dir = "$main_result_dir/GENE_LIST";
     run_exe("mkdir $gene_list_dir") unless ( -d $gene_list_dir );
     run_exe("cp $res_dir/FINAL_MODULE.dat $gene_list_dir/FINAL_MODULE.dat");
-    $exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir $network 2> /dev/null";
+    #$exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir $network 2> /dev/null";
+    $exe = "$result_path $data_dir $gene_list_dir/FINAL_MODULE.dat $network_type $best_log2_fold_change NONE $gene_list_dir $script_dir $network";
     run_exe($exe);
     
 }

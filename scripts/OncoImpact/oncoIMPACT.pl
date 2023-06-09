@@ -389,6 +389,7 @@ sub merge_and_clean {
 sub run_oncoIMPACT {
 	my ($sysCall, @temp);
 	$sysCall = "$config{'scriptDir'}/pathway_ana.pl ALL $config{'outDir'}/COMPLETE_SAMPLES $config{'dataType'} $config{'numThreads'} DRIVER_NET $config{'scriptDir'} $config{'network'}";
+	#$sysCall = "$config{'scriptDir'}/pathway_ana.pl DRIVER_INFERENCE $config{'outDir'}/COMPLETE_SAMPLES $config{'dataType'} $config{'numThreads'} DRIVER_NET $config{'scriptDir'} $config{'network'}";
 	$sysCall .= " TEST " if $config{'testMode'}; 
 	$sysCall .= "&> $config{'outDir'}/run.log";
 	print STDERR "$sysCall\n";

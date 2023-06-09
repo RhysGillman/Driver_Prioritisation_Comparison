@@ -10,7 +10,7 @@ my ( $filter_type, $network_type, $explained_freq_file, $freq_threshold, $path_t
 
 require "$script_dir/Construct_network.pl";
 
-my $NB_PARAM_SCRIPT = 8;
+my $NB_PARAM_SCRIPT = 9;
 #print STDERR " *** out_file $out_file\n";
 
 #read the recurrently explained file
