@@ -3,6 +3,6 @@ numpy
 tqdm
 sklearn
 matplotlib
-pylab
-networkx
 scipy
+networkx
+

@@ -66,6 +66,16 @@ then
 fi
 
 ############################################################
+# Dependencies                                             #
+############################################################
+
+if (($install_dependencies==1))
+then
+  python -m pip install -r scripts/PersonaDrive/requirements.txt
+fi
+
+
+############################################################
 # Setup Symbolic Link                                      #
 ############################################################
 
@@ -94,7 +104,6 @@ fi
 ############################################################
 
 mkdir -p results/CCLE_$network_choice
-
 
 ############################################################
 # Download Data                                            #
@@ -144,9 +153,9 @@ then
     Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type
     perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg
     Rscript --vanilla "scripts/format_OncoImpact_results.R" -n $network_choice -c $cell_type
-    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/ANALYSIS
-    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/COMPLETE_SAMPLES
-    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/INCOMPLETE_SAMPLES
+    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/ANALYSIS"
+    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/COMPLETE_SAMPLES"
+    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/INCOMPLETE_SAMPLES"
 fi
 
 ############################################################
@@ -155,5 +164,13 @@ fi
 
 if (($run_PersonaDrive==1))
 then
-    
+    Rscript --vanilla "scripts/prepare_PersonaDrive_data.R" -n $network_choice -c $cell_type
+    echo "################################################\n    1. Personalized Bipartite Networks (PBNs).... \n################################################\n\n\n" > log/PersonaDrive_$cell_type.log
+
+    python scripts/PersonaDrive/constructing_PBNs.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_$cell_type.log
+
+    echo "\n################################################\n    2 - Rank Mutated Genes ...\n################################################\n\n\n" >> log/PersonaDrive_$cell_type.log
+    python scripts/PersonaDrive/PersonaDrive.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_$cell_type.log
+
+    Rscript --vanilla "scripts/format_PersonaDrive_results.R" -n $network_choice -c $cell_type
 fi

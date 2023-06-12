@@ -46,13 +46,11 @@ def load_ppi(file):
     return ppi
 
 ## construct personalized networks
-def construct_PBNs(M,O,PPI,cancer,dataset,network):
+def construct_PBNs(M,O,PPI,outputDir):
 
     #create the output folder
-    if not os.path.exists("graphs/"+dataset+"/"):
-        os.mkdir("graphs/"+dataset+"/")
-    if not os.path.exists("graphs/"+dataset+"/"+cancer+"_"+network):
-        os.mkdir("graphs/"+dataset+"/"+cancer+"_"+network)
+    if not os.path.exists(outputDir+'/BP'):
+        os.mkdir(outputDir+'/BP')
 
     #####################################
     #   Starting with mutation data     #
@@ -84,14 +82,13 @@ def construct_PBNs(M,O,PPI,cancer,dataset,network):
     print("There are: ",len(D_set)," outliers.")
 
 
-
     #####################################
     #  Constructing Bipartite networks  #
     #####################################
 
     for i in tqdm(samples):
 
-        if 'BP_'+i+'.gml' not in os.listdir("graphs/"+dataset+"/"+cancer+"_"+network):
+        if 'BP_'+i+'.gml' not in os.listdir(outputDir+'/BP'):
 
             # initialize the bipartite networks B_i
             Bi = nx.Graph()
@@ -130,44 +127,36 @@ def construct_PBNs(M,O,PPI,cancer,dataset,network):
             bipartite1_nodes = {n for n, d in Bi.nodes(data=True) if d['bipartite']==1}
 
             print("Mutations:  ",len(bipartite0_nodes),"   Outliers:",len(bipartite1_nodes))
-            nx.write_gml(Bi, "graphs/"+dataset+"/"+cancer +"_"+network + '/BP_'+i+'.gml')
+            nx.write_gml(Bi, outputDir+'/BP'+'/BP_'+i+'.gml')
 
 
 if __name__ == "__main__":
-    data_folder="data/"
 
+    
     description="Personalized Bipartite Networks (PBNs)"
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('-d', "--dataset", type=str, required=False, default='TCGA', help="Dataset: TCGA or CCLE")
-    parser.add_argument('-c', '--cancer', type=str, required=False, default="COAD", help="Cancer Type")
-    parser.add_argument('-n', '--network', type=str, required=False, default="ST11", help="PPI Network")
-
+    parser.add_argument('-o', "--outputDir", type=str, required=True, default='', help="Path to output Directory")
+    
     args = parser.parse_args()
-    dataset = args.dataset
-    cancer = args.cancer
-    network = args.network
+    outputDir = args.outputDir
+
     #~~~~~~~~~~~~~Step 1：~~~~~~~~~~~~~~~~~~
     # load PPI data
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    networks={
-        "ST11":"data/string_v11.5_network.csv",
-        "ST10":"data/string_v10.5_network.csv",
-        "DW":"data/dawnrank_network.csv"
-    }
-    ppi_file = networks[network]
-    ppi = load_ppi(ppi_file)
+    
+    ppi = load_ppi("tmp/tmp_PersonaDrive_network.tsv")
     print('PPI network loaded...')
 
     #~~~~~~~~~~~~~Step 2：~~~~~~~~~~~~~~~~~~
     # load outliers data
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    DEGs_matrix = load_DEGs(data_folder+cancer+"_"+dataset+"/DEGs.csv")
+    DEGs_matrix = load_DEGs("tmp/tmp_PersonaDrive_DEGs.csv")
     print('DEGs loaded...')
 
     #~~~~~~~~~~~~~Step 3：~~~~~~~~~~~~~~~~~~
     # load mutation data
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    M_matrix = load_mutations(data_folder+cancer+"_"+dataset+"/MUT.csv")
+    M_matrix = load_mutations("tmp/tmp_PersonaDrive_MUT.csv")
     print('Mutations loaded...')
 
     #~~~~~~~~~~~~~Step 4：~~~~~~~~~~~~~~~~~~
@@ -179,4 +168,4 @@ if __name__ == "__main__":
     #~~~~~~~~~~~~~Step 5：~~~~~~~~~~~~~~~~~~
     # construct the personalized networks
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    construct_PBNs(M_matrix,DEGs_matrix,ppi,cancer,dataset,network)
+    construct_PBNs(M_matrix,DEGs_matrix,ppi,outputDir)

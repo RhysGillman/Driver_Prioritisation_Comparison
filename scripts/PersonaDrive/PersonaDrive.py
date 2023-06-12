@@ -34,17 +34,17 @@ def load_pathways():
                     pathways[g].add(p)
     return pathways
 
-def calculate_pps(graphs,dataset,cancer,network):
-    samples=[sample.split('_')[-1].replace('.gml','') for sample in os.listdir(graphs+dataset+"/"+cancer+"_"+network) if '.gml' in sample]
+def calculate_pps(graphs,outputDir):
+    samples=[sample.split('_')[-1].replace('.gml','') for sample in os.listdir(outputDir+'/BP') if '.gml' in sample]
 
     #load graphs
     D_data={}
 
-    for i in tqdm(os.listdir(graphs+dataset+"/"+cancer+"_"+network)): # for each sample i in S
+    for i in tqdm(os.listdir(outputDir+'/BP')): # for each sample i in S
         if '.gml' in i:
             sample = i.split('_')[-1].replace('.gml','') # retreive samle ID from the graph name
 
-            Bi = nx.read_gml(graphs+dataset+"/"+cancer+"_"+network+"/"+i) #load Bi graph
+            Bi = nx.read_gml(outputDir+'/BP/'+i) #load Bi graph
             # set of all outliers O_final in the second partition connected to M_i
             D_Bi = [n for n, d in Bi.nodes(data=True) if d['bipartite']==1]
             Di=[]
@@ -63,7 +63,7 @@ def calculate_pps(graphs,dataset,cancer,network):
             #calculate the similarity score
             if len(D_i)*len(D_j)!=0:
                 pps[i][j]=math.pow(len(D_i.intersection(D_j)),2)/(len(D_i)*len(D_j))
-    pps.to_csv("results/"+dataset+"/"+cancer+"_"+network+"/pps_matrix.csv")
+    pps.to_csv(outputDir+"/pps_matrix.csv")
 
 # calculate influence scores
 def calculate_infl_scores(Bi,Mi,sample_i,similarity,pathways):
@@ -84,17 +84,17 @@ def calculate_infl_scores(Bi,Mi,sample_i,similarity,pathways):
     return influence_scores
 
 #prioritize mutated genes
-def PersonaDrive(graphs,pps_matrix,cancer,dataset,pathways,network):
-    with open("results/"+dataset+"/"+cancer+"_"+network+"/PersonaDrive.txt","w") as ofile:
+def PersonaDrive(graphs,pps_matrix,outputDir):
+    with open(outputDir+"/PersonaDrive.txt","w") as ofile:
         personalized_drivers={}
 
-        for i in tqdm(os.listdir(graphs+dataset+"/"+cancer+"_"+network)):
+        for i in tqdm(os.listdir(outputDir+'/BP')):
             if '.gml' in i:
                 #get sample id
                 sample = i.split('_')[-1].replace('.gml','')
 
                 #load the graph file
-                Bi = nx.read_gml(graphs+dataset+"/"+cancer+"_"+network+"/"+i)
+                Bi = nx.read_gml(outputDir+'/BP/'+i)
                 #list all mutations
                 Mi = [n for n, d in Bi.nodes(data=True) if d['bipartite']==0]
                 if len(Mi) == 0:
@@ -110,19 +110,15 @@ def PersonaDrive(graphs,pps_matrix,cancer,dataset,pathways,network):
 
 
 if __name__ == "__main__":
-    graphs="graphs/"
 
     description="Ranking Mutated Genes in PBNs"
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('-d', "--dataset", type=str, required=False, default='TCGA', help="Dataset: TCGA or CCLE")
-    parser.add_argument('-c', '--cancer', type=str, required=False, default="COAD", help="Cancer Type")
-    parser.add_argument('-n', '--network', type=str, required=False, default="ST11", help="PPI Network")
-
+    parser.add_argument('-o', "--outputDir", type=str, required=True, default='', help="Path to output Directory")
+    
     args = parser.parse_args()
-    dataset = args.dataset
-    cancer = args.cancer
-    network = args.network
+    outputDir = args.outputDir
 
+    graphs=outputDir+'/BP'
 
     #~~~~~~~~~~~~~Step 1：~~~~~~~~~~~~~~~~~~
     # load pathways data
@@ -134,17 +130,13 @@ if __name__ == "__main__":
     #~~~~~~~~~~~~~Step 1：~~~~~~~~~~~~~~~~~~
     # construct pps matrix
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    try:
-        os.mkdir("results/"+dataset+"/"+cancer+"_"+network)
-    except:
-        print("Folder Exist!")
-    if "pps_matrix.csv" not in os.listdir("results/"+dataset+"/"+cancer+"_"+network):
-        calculate_pps(graphs,dataset,cancer,network)
-    pps_file="results/"+dataset+"/"+cancer+"_"+network+"/pps_matrix.csv"
+    if "pps_matrix.csv" not in os.listdir(outputDir):
+        calculate_pps(graphs,outputDir)
+    pps_file=outputDir+"/pps_matrix.csv"
     pps_matrix=pd.read_csv(pps_file,index_col=0)
     print('PPS matrix loaded...')
 
     #~~~~~~~~~~~~~Step 1：~~~~~~~~~~~~~~~~~~
     # run PersonaDrive
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    PersonaDrive(graphs,pps_matrix,cancer,dataset,pathways,network)
+    PersonaDrive(graphs,pps_matrix,outputDir)
