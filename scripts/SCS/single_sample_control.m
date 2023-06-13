@@ -1,8 +1,8 @@
 function [ predict_driver_gene_module] = single_sample_control( z,B_fda,C,node_new,name_gene )
-%function£ºpredict the driver mutational profile for each patient
-%   input£ºz£¬the structure of system£¬here we assigned it as PPI network£»B_fda£¬the mutation set£»
-%          C£ºtarget control nodes£¬differentially expressed genes£»
-%  Output: filter_subspace£¬the first colunm is the name of predicted driver mutation£¬the second colunm is the consensus module
+%function??predict the driver mutational profile for each patient
+%   input??z??the structure of system??here we assigned it as PPI network??B_fda??the mutation set??
+%          C??target control nodes??differentially expressed genes??
+%  Output: filter_subspace??the first colunm is the name of predicted driver mutation??the second colunm is the consensus module
 %           The third colunm is the impact scored of the predicted driver genes
 %%
 %****************************set parameters of PSCS********************************
@@ -35,9 +35,9 @@ while ind_max
 
   
   % Generate new Markov chain
-  % Assume that the length of TK0 as the initial Markov chain is k£¬
-  % Randomly choose a locate£¬replace the matched edges untill we generate the new markov chains
-  % Note£ºThe right matched nodes is chosed from the targeted nodes in right 
+  % Assume that the length of TK0 as the initial Markov chain is k??
+  % Randomly choose a locate??replace the matched edges untill we generate the new markov chains
+  % Note??The right matched nodes is chosed from the targeted nodes in right 
   [ TK1,predict_driver1,omiga1,driver_module1 ] = New_Markov_chain_driver( z,B_fda,C,NM,TK0,interesting_ind0);
   
   %random accept the new state:c=0
@@ -71,13 +71,13 @@ while ind_max
      All_omiga(num_iter,1)=omiga0;
      All_driver_module{num_iter,1}=driver_module0;
   
-    num_iter=num_iter+1
+    num_iter=num_iter+1;
     
     
 end
 %%
-%Obtain the information of Markov chain sampling£¬including the number of
-%driver nodes£¬Impactand the corresponding consensus module
+%Obtain the information of Markov chain sampling??including the number of
+%driver nodes??Impactand the corresponding consensus module
 %Firstly obtain all the possible driver genes
 [row_All_driver_module,~]=size(All_driver_module);
 poss_driver=[];
@@ -93,7 +93,7 @@ possible_driver=unique(poss_driver);%Firstly obtain all the possible driver gene
 %its impact scores
 
 for i=1:length(possible_driver)
-     i
+     %i
      candidate_driver=possible_driver(i,1);
      candidate_module=[];
     for j=1:row_All_driver_module

@@ -23,7 +23,7 @@ while index
     end 
     q=q_new+q_old;
     q_old=q_new;
-    num=num+1
+    num=num+1;
     if num>100
         index=0;
     end

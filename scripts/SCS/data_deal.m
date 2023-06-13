@@ -67,6 +67,7 @@ for i=1:length(Targets_genes_sampels)
     Targets_C{i,1}=ind;
 end
 
+
 for i=1:length(Mutation_genes_sampels)
     
     [~,ind]=ismember(Mutation_genes_sampels{i,1},name_gene);

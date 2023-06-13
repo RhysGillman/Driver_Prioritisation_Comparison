@@ -174,3 +174,24 @@ then
 
     Rscript --vanilla "scripts/format_PersonaDrive_results.R" -n $network_choice -c $cell_type
 fi
+
+############################################################
+# Run SCS                                                  #
+############################################################
+
+if (($run_SCS==1))
+then
+    mkdir -p results/CCLE_$network_choice/SCS/$cell_type
+    Rscript --vanilla "scripts/prepare_SCS_data.R" -n $network_choice -c $cell_type
+    cd scripts
+    matlab -batch "create_SCS_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
+    cd SCS
+    matlab -batch "main_SCS('$network_choice', '$cell_type')" #> log/SCS_$cell_type.log
+    cd ..
+    matlab -batch "get_SCS_results_names('$network_choice', '$cell_type')"
+    cd $SCRIPT_DIR
+    Rscript --vanilla "scripts/format_SCS_results.R" -n $network_choice -c $cell_type
+    rm scripts/SCS/CNV_internate.txt
+    rm scripts/SCS/EXPR_internate.txt
+    rm scripts/SCS/SNP_internate.txt
+fi

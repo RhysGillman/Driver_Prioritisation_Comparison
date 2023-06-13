@@ -70,7 +70,7 @@ for i=1:a
 end
 Q=1;
 m1=length(MKK1);
-R0=K(:,1);%The left nodes on the N step K(:,1)£¬as the right mathced nodes in N+1 step
+R0=K(:,1);%The left nodes on the N step K(:,1)ï¿½ï¿½as the right mathced nodes in N+1 step
 
 CC=E(:,1);%left matched nodes
 %unmatched nodes in the N+1 step
@@ -81,7 +81,7 @@ TK{r,1}=K;
 KK=[KK;K];
 MKK=unique(KK,'rows');
 MKK1=MKK;
-r=r+1
+r=r+1;
 %avoid circle iteration
 m2=length(MKK1);
 

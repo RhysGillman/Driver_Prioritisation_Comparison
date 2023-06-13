@@ -140,7 +140,7 @@ TK{k+1,1}=K;
 KK=[KK;K];
 MKK=unique(KK,'rows');
 MKK1=MKK;
-k=k+1
+k=k+1;
 %avoid circle iteration
 m2=length(MKK1);
 

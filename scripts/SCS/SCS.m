@@ -9,7 +9,6 @@ function [ new_result_driver_gene_module ] = SCS( edge0,node0,expression_fileNam
 
 [ CNV_name,CNV_data,SNP_name,SNP_data,EXPR_name,EXPR_data ] = sample_information( node0,expression_fileName, CNV_fileName,SNP_fileName);
 %*************************************************************
-
 name_gene=node0;
 omiga=1;%Fold change==2
 %[ Constrained_B,Targets_C,z ] = data_deal( edge,node,CNV_name,CNV_data,SNP_name,SNP_data,EXPR_name,EXPR_data,omiga);
@@ -18,7 +17,8 @@ U=[1:length(Constrained_B)]';
 tic
 for i=1:length(Constrained_B)
 %  for i=1:1
-    i
+    tic
+    disp(strcat(num2str(i),"/",num2str(length(Constrained_B))))
     B_fda=Constrained_B{find_U(i,U),1};C=Targets_C{find_U(i,U),1};
     [ z_sub_network ] = sample_mutation_network( z,B_fda );
    sample_network{i,1}=z_sub_network;%save the sample specific network  
@@ -40,6 +40,7 @@ for i=1:length(Constrained_B)
         result_driver_gene_module{i,1}=predict_driver_gene_module;
     end
     
+    toc
     
     end
     

@@ -1,11 +1,11 @@
 function [ final_PP,eva_index] = check_Markov_sampling( m,Z,M)
 %%Function: The process of Markov sampling
-%Input£º
+%Input??
 %m:initial maximum matching connections
 %Z:roginal connections between nodes
-%M£ºoriginal markov chain
-%Output£º
-%M£ºdifferent maximum matching in the markov sampling
+%M??original markov chain
+%Output??
+%M??different maximum matching in the markov sampling
 %eva_index:the index denotes whether we suceessfully find the new maximum matching
 %%
 final_PP=[];
@@ -47,7 +47,7 @@ for iu=1:row_p2
   mm=m;
  ZZ=Z;
 
-%search for each new matched edge with length(m)£»
+%search for each new matched edge with length(m)??
 [x1,y1]=find(Z(:,1)==m(ip,1));[x2,y2]=find(Z(:,2)==m(ip,2));
 delete_left_node=m(ip,1);
 delete_right_node=m(ip,2);
@@ -100,7 +100,7 @@ end
 final_PP=[re_edge(PP(:,1)) re_edge(PP(:,2))-N];
 [row_PP,colunm_PP]=size(final_PP);
 for i=1:row_PP
-    i
+    %i
 [check_PP,index]=ismember(final_PP(i,2),mm(:,2));
 if index~=0
 oi=final_PP(i,1)==mm(index,1);

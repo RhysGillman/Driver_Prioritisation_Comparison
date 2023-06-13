@@ -40,7 +40,8 @@ prepare_data=0
 
 # CCLE Cell type to analyse
 # Options --
-  # ALL - Loops through all cell types present in the data files
+  # "ALL" - Loops through all cell types present in the data files
+  # Single lineage (eg. "Liver", "Breast", "Skin", etc.)
 
 cell_type="Liver"
 
@@ -75,7 +76,8 @@ global_alpha=0.1
 run_DawnRank=0
 run_PRODIGY=0
 run_OncoImpact=0
-run_PersonaDrive=1
+run_PersonaDrive=0
+run_SCS=1
 
 
 
