@@ -71,7 +71,8 @@ fi
 
 if (($install_dependencies==1))
 then
-  python -m pip install -r scripts/PersonaDrive/requirements.txt
+  #python3 -m pip install -r scripts/PersonaDrive/requirements.txt
+  Rscript --vanilla "scripts/install_R_dependencies.r"
 fi
 
 
@@ -126,72 +127,151 @@ then
 fi
 
 
-############################################################
-# Run DawnRank                                             #
-############################################################
+# If $cell_type = ALL then read sample_info and get all cell_types, then make $cell_type = vector of cell types
 
-if (($run_DawnRank==1))
-then
-    Rscript --vanilla "scripts/run_DawnRank.R" -n $network_choice -c $cell_type
-fi
+# For every lineage in cell_type, run all of the algorithms
 
-############################################################
-# Run PRODIGY                                              #
-############################################################
 
-if (($run_PRODIGY==1))
-then
-    Rscript --vanilla "scripts/run_PRODIGY.R" -n $network_choice -c $cell_type
-fi
+    memory_usage () {
+        local pid=$1
+        local maxmem=0
+        while [ -d "/proc/${pid}" ]; do
+            local mem=`cat /proc/${pid}/status | grep VmRSS | awk '{print $2}'`
+            if [[ ${mem} -gt ${maxmem} ]]; then
+                local maxmem=${mem}
+            fi
+            sleep 1
+        done
+        echo $maxmem
+    }
 
-############################################################
-# Run OncoImpact                                           #
-############################################################
+    ############################################################
+    # Run DawnRank                                             #
+    ############################################################
+    
+    if (($run_DawnRank==1))
+    then
+        # Start time
+        start=$(date +%s.%N)
+        Rscript --vanilla "scripts/run_DawnRank.R" -n $network_choice -c $cell_type > log/DawnRank_$cell_type.log &
+        # Get the process ID (PID) of the  script
+        max_mem=$( memory_usage $! )
+        end=$(date +%s.%N)
+        # Measure time difference
+        runtime=$(echo "$end - $start" | bc -l)
+        # Save log information to a file
+        echo -e "Runtime_sec\tPeak_VmRSS" > log/DawnRank_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/DawnRank_${cell_type}_stats.txt
+    fi
+    
+    ############################################################
+    # Run PRODIGY                                              #
+    ############################################################
+    
+    if (($run_PRODIGY==1))
+    then
+        # Start time
+        start=$(date +%s.%N)
+        Rscript --vanilla "scripts/run_PRODIGY.R" -n $network_choice -c $cell_type &
+        # Get the process ID (PID) of the  script
+        max_mem=$( memory_usage $! )
+        end=$(date +%s.%N)
+        # Measure time difference
+        runtime=$(echo "$end - $start" | bc -l)
+        # Save log information to a file
+        echo -e "Runtime_sec\tPeak_VmRSS" > log/PRODIGY_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/PRODIGY_${cell_type}_stats.txt
+    fi
+    
+    ############################################################
+    # Run OncoImpact                                           #
+    ############################################################
+    
+    if (($run_OncoImpact==1))
+    then
+        Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type
+        # Start time
+        start=$(date +%s.%N)
 
-if (($run_OncoImpact==1))
-then
-    Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type
-    perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg
-    Rscript --vanilla "scripts/format_OncoImpact_results.R" -n $network_choice -c $cell_type
-    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/ANALYSIS"
-    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/COMPLETE_SAMPLES"
-    rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/INCOMPLETE_SAMPLES"
-fi
+        perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg &
 
-############################################################
-# Run PersonaDrive                                         #
-############################################################
+        # Get the process ID (PID) of the  script
+        max_mem=$( memory_usage $! )
+        end=$(date +%s.%N)
+        # Measure time difference
+        runtime=$(echo "$end - $start" | bc -l)
+        # Save log information to a file
+        echo -e "Runtime_sec\tPeak_VmRSS" > log/OncoImpact_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/OncoImpact_${cell_type}_stats.txt
 
-if (($run_PersonaDrive==1))
-then
-    Rscript --vanilla "scripts/prepare_PersonaDrive_data.R" -n $network_choice -c $cell_type
-    echo "################################################\n    1. Personalized Bipartite Networks (PBNs).... \n################################################\n\n\n" > log/PersonaDrive_$cell_type.log
 
-    python scripts/PersonaDrive/constructing_PBNs.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_$cell_type.log
+        Rscript --vanilla "scripts/format_OncoImpact_results.R" -n $network_choice -c $cell_type
+        rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/ANALYSIS"
+        rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/COMPLETE_SAMPLES"
+        rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/INCOMPLETE_SAMPLES"
+    fi
+    
+    ############################################################
+    # Run PersonaDrive                                         #
+    ############################################################
+    
+    if (($run_PersonaDrive==1))
+    then
+        Rscript --vanilla "scripts/prepare_PersonaDrive_data.R" -n $network_choice -c $cell_type
+        echo "1. Personalized Bipartite Networks (PBNs)..." > log/PersonaDrive_$cell_type.log
 
-    echo "\n################################################\n    2 - Rank Mutated Genes ...\n################################################\n\n\n" >> log/PersonaDrive_$cell_type.log
-    python scripts/PersonaDrive/PersonaDrive.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_$cell_type.log
+        # Start time
+        start=$(date +%s.%N)
 
-    Rscript --vanilla "scripts/format_PersonaDrive_results.R" -n $network_choice -c $cell_type
-fi
+        python3 scripts/PersonaDrive/constructing_PBNs.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_$cell_type.log &
+    
 
-############################################################
-# Run SCS                                                  #
-############################################################
+        max_mem1=$( memory_usage $! )
 
-if (($run_SCS==1))
-then
-    mkdir -p results/CCLE_$network_choice/SCS/$cell_type
-    Rscript --vanilla "scripts/prepare_SCS_data.R" -n $network_choice -c $cell_type
-    cd scripts
-    matlab -batch "create_SCS_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
-    cd SCS
-    matlab -batch "main_SCS('$network_choice', '$cell_type')" #> log/SCS_$cell_type.log
-    cd ..
-    matlab -batch "get_SCS_results_names('$network_choice', '$cell_type')"
-    cd $SCRIPT_DIR
-    Rscript --vanilla "scripts/format_SCS_results.R" -n $network_choice -c $cell_type
-    rm scripts/SCS/CNV_internate.txt
-    rm scripts/SCS/EXPR_internate.txt
-    rm scripts/SCS/SNP_internate.txt
-fi
+        echo "2 - Rank Mutated Genes ..." >> log/PersonaDrive_$cell_type.log
+        python3 scripts/PersonaDrive/PersonaDrive.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_$cell_type.log &
+
+        max_mem2=$( memory_usage $! )
+        end=$(date +%s.%N)
+        # Measure time difference
+        runtime=$(echo "$end - $start" | bc -l)
+        # Save log information to a file
+        echo -e "Runtime_sec\tPeak_VmRSS" > log/PersonaDrive_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/PersonaDrive_${cell_type}_stats.txt
+
+        Rscript --vanilla "scripts/format_PersonaDrive_results.R" -n $network_choice -c $cell_type
+    fi
+    
+    ############################################################
+    # Run SCS                                                  #
+    ############################################################
+    
+    if (($run_SCS==1))
+    then
+        mkdir -p results/CCLE_$network_choice/SCS/$cell_type
+        Rscript --vanilla "scripts/prepare_SCS_data.R" -n $network_choice -c $cell_type
+        cd scripts
+        matlab -batch "create_SCS_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
+        cd SCS
+
+        # Start time
+        start=$(date +%s.%N)
+
+        matlab -batch "main_SCS('$network_choice', '$cell_type')" &
+
+        max_mem=$( memory_usage $! )
+        end=$(date +%s.%N)
+        # Measure time difference
+        runtime=$(echo "$end - $start" | bc -l)
+        # Save log information to a file
+        echo -e "Runtime_sec\tPeak_VmRSS" > log/SCS_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/SCS_${cell_type}_stats.txt
+
+        cd ..
+        matlab -batch "get_SCS_results_names('$network_choice', '$cell_type')"
+        cd $SCRIPT_DIR
+        Rscript --vanilla "scripts/format_SCS_results.R" -n $network_choice -c $cell_type
+        rm scripts/SCS/CNV_internate.txt
+        rm scripts/SCS/EXPR_internate.txt
+        rm scripts/SCS/SNP_internate.txt
+    fi
