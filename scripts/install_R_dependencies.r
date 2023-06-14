@@ -6,7 +6,19 @@ packages <- c(
     "BiocManager",
     "snowfall",
     "data.table",
-    "maxstat"
+    "maxstat",
+    "MASS",
+    "igraph",
+    "ff",
+    "BH",
+    "httr",
+    "Rcpp",
+    "visNetwork",
+    "devtools",
+    "BiocManager",
+    "plyr",
+    "mixtools",
+    "cowplot"
 )
 
 # Install packages not yet installed
@@ -17,10 +29,12 @@ if (any(installed_packages == FALSE)) {
 
 # BioConductor Packages
 
-
-
 packages <- c(
-    "DESeq2"
+    "DESeq2",
+    "graphite",
+    "org.Hs.eg.db",
+    "topGO",
+    "biomaRt"
 )
 
 # Install packages not yet installed
@@ -29,3 +43,14 @@ if (any(installed_packages == FALSE)) {
   BiocManager::install(packages[!installed_packages])
 }
 
+# Github Packages
+
+packages <- c(
+    "PCSF"="IOR-Bioinformatics/PCSF"
+)
+
+installed_packages <- names(packages) %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  devtools::install_github(packages[!installed_packages],
+                         dependencies=TRUE, type="source", force=TRUE)
+}
