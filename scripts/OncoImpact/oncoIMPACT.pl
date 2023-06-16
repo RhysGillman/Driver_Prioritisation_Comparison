@@ -61,7 +61,6 @@ print "Reading config file. Please wait...";
 read_config( $configFile, \%config );
 print "done.\n";
 
-
 # Prep output directory
 system("mkdir $config{'outDir'}") unless ( -d $config{'outDir'} );
 

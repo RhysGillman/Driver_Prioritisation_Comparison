@@ -77,7 +77,7 @@ cnv <- fread(paste0("validation_data/CCLE_",network_choice,"/cnv.csv"), select =
 genes <- Reduce(intersect, list(
   rownames(l2fc_rna),
   rownames(mutation)
-))
+)) %>% sort()
 
 l2fc_rna <- l2fc_rna[genes, samples]
 mutation <- mutation[genes, samples]

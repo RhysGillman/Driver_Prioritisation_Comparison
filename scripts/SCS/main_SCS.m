@@ -9,7 +9,7 @@ MAIN_DIR="../..";
 
 %**************Part 1��Input the information of samples and the network****
 %*******************default network inforamtion
-load(strcat(MAIN_DIR,'/tmp/tmp_SCS_network.mat')) %N=11648
+load(strcat(MAIN_DIR,'/tmp/tmp_network.mat')) %N=11648
 %load('network2_information.mat') %N=6339
 
 %*****Extract the mutation genes and the differentially expressed genes for

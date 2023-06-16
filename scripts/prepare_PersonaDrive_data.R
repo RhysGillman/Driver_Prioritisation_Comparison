@@ -114,7 +114,7 @@ genes <- Reduce(intersect, list(
   colnames(rna_outliers),
   rownames(mutation),
   append(network %>% pull(1), network %>% pull(2))
-))
+)) %>% sort()
 
 rna_outliers <- rna_outliers[samples, genes]
 mutation <- mutation[genes, samples]

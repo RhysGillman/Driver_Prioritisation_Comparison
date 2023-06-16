@@ -85,7 +85,7 @@ genes <- Reduce(intersect, list(
   rownames(l2fc_rna),
   rownames(mutation),
   append(network %>% pull(1), network %>% pull(2))
-))
+)) %>% sort
 
 l2fc_rna <- l2fc_rna[genes, samples]
 mutation <- mutation[genes, samples]
