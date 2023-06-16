@@ -15,6 +15,6 @@ edge0(:,1) = data.protein_1;
 edge0(:,2) = data.protein_2;
 
 % save the variables to a .mat file
-save("../tmp/tmp_SCS_network.mat", "edge0", "node0");
+save("../tmp/tmp_network.mat", "edge0", "node0");
 
 end

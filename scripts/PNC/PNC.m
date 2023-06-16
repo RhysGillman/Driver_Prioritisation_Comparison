@@ -1,4 +1,4 @@
-function [ PNC_driver_result, out_deg, in_deg, tumor ] = PNC( expression_tumor_fileName,expression_normal_fileName)
+function [ PNC_driver_result, out_deg, in_deg, tumor ] = PNC( expression_tumor_fileName,expression_normal_fileName,network_fileName)
 %we output the sample-specific driver profiles by using different control
 %methods
 %   Input:
@@ -17,10 +17,7 @@ gene_list=tumor.textdata(2:end,1);tumor_data=tumor.data;
 Sample_name_normal=normal.textdata(1,2:end);normal_data=normal.data;
 data=tumor_data;ref_data=normal_data;
 
-load('../../../Driver_Gene_Targeting/CCLE_only_validation_data/de_novo_networks_input/STRING11_network_directed.mat')
-%load('GIN_network_information.mat')
-%load('sPPI_network_information.mat')
-%[~,PPI,~]=xlsread('network_FIsInGene_041709.xlsx');
+load(network_fileName)
 [x1,y1]=ismember(edge0(:,1),gene_list);
 [x2,y2]=ismember(edge0(:,2),gene_list);
 

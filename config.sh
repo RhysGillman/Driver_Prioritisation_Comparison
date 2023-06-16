@@ -74,10 +74,11 @@ global_alpha=0.1
   # 1 - Run
 
 run_DawnRank=0
-run_PRODIGY=1
+run_PRODIGY=0
 run_OncoImpact=0
 run_PersonaDrive=0
 run_SCS=0
+run_PNC=1
 
 
 
@@ -93,13 +94,16 @@ run_SCS=0
   # File path to desired link location
 
 use_symbolic_link=true
-#link_location="/c/Users/jc428796/Driver_Prioritisation_link"
-link_location="/home/rgillman/Driver_Prioritisation_link"
+link_location="/c/Users/jc428796/Driver_Prioritisation_link"
+#link_location="/home/rgillman/Driver_Prioritisation_link"
 
 
-windows_mode=false
+windows_mode=true
 
 
 
 
+
+
+gurobi_path="C:\gurobi1000\win64\matlab"
   
