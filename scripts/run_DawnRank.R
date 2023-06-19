@@ -13,7 +13,7 @@ suppressPackageStartupMessages (library(maxstat, quietly = T))
 option_list = list(
   make_option(c("-n", "--network"), type="character", default="STRINGv11", 
               help="network to use", metavar ="Network"),
-  make_option(c("-c", "--celltype"), type="character", default="Liver", 
+  make_option(c("-c", "--celltype"), type="character", default="Biliary_Tract", 
               help="cell type to analyse", metavar ="Network")
 ); 
 
@@ -100,10 +100,10 @@ dawnMatrix <- DawnMatrix(network)
 
 res_df <- data.frame(Gene = character(), Patient = character(), Rank = numeric(), PercentRank = numeric())
 
-all(rownames(dawnMatrix) == rownames(mutation))
-all(rownames(dawnMatrix) == rownames(rna))
-all(rownames(rna) == rownames(mutation))
-all(colnames(rna) == colnames(mutation))
+#all(rownames(dawnMatrix) == rownames(mutation))
+#all(rownames(dawnMatrix) == rownames(rna))
+#all(rownames(rna) == rownames(mutation))
+#all(colnames(rna) == colnames(mutation))
 
 for(sample in samples){
   

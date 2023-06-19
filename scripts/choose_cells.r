@@ -39,7 +39,8 @@ CCLE_sample_info <- read_csv("data/CCLE/Model.csv") %>%
   filter(!is.na(OncotreeLineage)) %>%
   filter(!is.na(ModelID)) %>%
   filter(!is.na(StrippedCellLineName)) %>%
-  dplyr::rename(DepMap_ID=ModelID, lineage=OncotreeLineage)
+  dplyr::rename(DepMap_ID=ModelID, lineage=OncotreeLineage) %>%
+  mutate(lineage=gsub(" |/","_",lineage))
 
 CCLE_model_profile <- read_csv("data/CCLE/OmicsDefaultModelProfiles.csv") %>%
   dplyr::rename(DepMap_ID=ModelID)
@@ -150,8 +151,8 @@ ggsave("plots/QC/PCA_all_CCLE_panel.png", width = 4000, height = 4000 ,units = "
 
 
 cell_list <- pca_data %>%
-  #Skin remove >0
-  filter(case_when(lineage=="Skin"~PC2<0,T~is.numeric(PC2))) %>%
+  #Skin remove <0
+  filter(case_when(lineage=="Skin"~PC2>0,T~is.numeric(PC2))) %>%
   # remove prostate
   # remove eye
   filter(!lineage %in% c("Prostate", "Eye")) %>%

@@ -63,6 +63,7 @@ cell_list <- read_csv("data/cell_list.csv")
 
 CCLE_sample_info <- read_csv("data/CCLE/Model.csv") %>%
   dplyr::select(DepMap_ID=ModelID, lineage=OncotreeLineage, cell_ID=StrippedCellLineName) %>%
+  mutate(lineage=gsub(" |/","_",lineage)) %>%
   filter(cell_ID %in% cell_list$cell_ID) %>%
   unique()
 
@@ -442,67 +443,4 @@ summary <- gold_standards %>%
             mean_gene_dependent_percentile_genes = mean(gene_dependent)/length(total_genes)*100, 
             mean_drug_sensitive_percentile_genes = mean(drug_sensitive)/length(total_genes)*100)
 
-write_csv(summary,"summary_all_gold_standards.csv")
-
-test <- get_z_scores(sqrt(dependency[lineage_cells$cell_ID,])) %>%
-  as.data.frame() %>%
-  rownames_to_column("cell_ID") %>%
-  pivot_longer(-cell_ID, names_to = "gene_ID", values_to = "z")
-
-ggplot(test, aes(x=z)) +
-  geom_density()
-
-test %>%
-  group_by(cell_ID) %>%
-  filter(z>2) %>%
-  summarise(count = n()) %>%
-  pull(count) %>%
-  mean()
-
-length(gold_standards$gene_ID %>% unique())
-
-lin_dependency %>%
-  group_by(cell_ID) %>%
-  filter(z>2) %>%
-  summarise(count = n()) %>%
-  pull(count) %>%
-  mean()
-
-lin_dependency %>%
-  group_by(cell_ID) %>%
-  filter(dependent) %>%
-  summarise(count = n()) %>%
-  pull(count) %>%
-  mean()
-
-dependency %>%
-  as.data.frame() %>%
-  rownames_to_column("cell_ID") %>%
-  pivot_longer(-cell_ID, names_to = "gene_ID", values_to = "dependency") %>%
-  group_by(cell_ID) %>%
-  filter(dependency ==1) %>%
-  summarise(count = n()) %>%
-  pull(count) %>%
-  mean()
-
-test <- get_z_scores(sqrt(dependency[lineage_cells$cell_ID,])) %>%
-  as.data.frame() %>%
-  rownames_to_column("cell_ID") %>%
-  pivot_longer(-cell_ID, names_to = "gene_ID", values_to = "z")
-
-ggplot(test, aes(x=z)) +
-  geom_density()
-
-source("scripts/original_runGESD.R")
-rnames <- paste("R",c(1:10),sep="")
-cnames <- paste("C",c(1:20),sep="")
-mat <- matrix(rexp(200), 10, dimnames=list(rnames,cnames))
-print(get_outliers(mat, 0.05))
-mat[1,1] <- NA
-print(get_outliers(mat, 0.05))
-source("scripts/runGESD.R")
-print(get_outliers(mat, 0.05))
-mat[1:10,1] <- NA
-print(get_outliers(mat, 0.05))
-
-GD
+write_csv(summary,"validation_data/summary_all_gold_standards.csv")

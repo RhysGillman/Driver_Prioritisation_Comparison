@@ -62,6 +62,9 @@ done
 
 if (($config_mode==1))
 then
+  echo -e "\n\n---------------------------"
+  echo -e "Reading Config File"
+  echo -e "---------------------------\n\n"
   source config.sh
 fi
 
@@ -71,7 +74,13 @@ fi
 
 if (($install_dependencies==1))
 then
-  #python3 -m pip install -r scripts/PersonaDrive/requirements.txt
+  echo -e "\n\n---------------------------"
+  echo -e "Installing Python Packages"
+  echo -e "---------------------------\n\n"
+  python3 -m pip install -r scripts/PersonaDrive/requirements.txt
+  echo -e "\n\n---------------------------"
+  echo -e "Installing R Packages"
+  echo -e "---------------------------\n\n"
   Rscript --vanilla "scripts/install_R_dependencies.r"
 fi
 
@@ -84,7 +93,9 @@ if (("$use_symbolic_link" == true));
 then
 
   rm "$link_location/Driver_Prioritisation_Comparison_Pipeline"
-  echo "Attempting to create link to $link_location"
+  echo -e "\n\n---------------------------"
+  echo -e "Attempting to create link to $link_location"
+  echo -e "---------------------------\n\n"
   mkdir -p "$link_location"
   # The below code is needed to add permissions for symoblic links when working in windows Git Bash
   if(("$windows_mode" == true));
@@ -95,7 +106,9 @@ then
   ln -sf "$SCRIPT_DIR" "$link_location"
 
   cd "$link_location/Driver_Prioritisation_Comparison_Pipeline"
-  echo "Link created to $link_location"
+  echo -e "\n\n---------------------------"
+  echo -e "Link created to $link_location"
+  echo -e "---------------------------\n\n"
   SCRIPT_DIR="$link_location/Driver_Prioritisation_Comparison_Pipeline"
 
 fi
@@ -112,6 +125,9 @@ mkdir -p results/CCLE_$network_choice
 
 if (($download_data==1))
 then
+    echo -e "\n\n---------------------------"
+    echo -e "Downloading Raw Data"
+    echo -e "---------------------------\n\n"
     bash scripts/download_data.sh -a
 fi
 
@@ -121,15 +137,34 @@ fi
 
 if (($prepare_data==1))
 then
-    Rscript --vanilla "scripts/choose_cells.r" -w $SCRIPT_DIR
-    Rscript --vanilla "scripts/prepare_all_gold_standards" -l $local_alpha -g $global_alpha
-    Rscript --vanilla "scripts/prepare_specific_data.r" -w $SCRIPT_DIR -n $network_choice -c $network_conf_th
+    echo -e "\n\n---------------------------"
+    echo -e "Data Processing"
+    echo -e "---------------------------\n\n"
+    echo -e "\n\n---------------------------"
+    echo -e "Step 1: Choosing cells"
+    echo -e "---------------------------\n\n"
+    #Rscript --vanilla "scripts/choose_cells.r" -w $SCRIPT_DIR > log/prepare_data.log
+    echo -e "\n\n---------------------------"
+    echo -e "Step 2: Identifying Gold-Standard Sensitive Genes"
+    echo -e "---------------------------\n\n"
+    #Rscript --vanilla "scripts/prepare_all_gold_standards.r" -l $local_alpha -g $global_alpha >> log/prepare_data.log
+    echo -e "\n\n---------------------------"
+    echo -e "Step 3: Filtering and reformatting data"
+    echo -e "---------------------------\n\n"
+    Rscript --vanilla "scripts/prepare_specific_data.r" -w $SCRIPT_DIR -n $network_choice -c $network_conf_th >> log/prepare_data.log
 fi
 
 
-# If $cell_type = ALL then read sample_info and get all cell_types, then make $cell_type = vector of cell types
+# Cell Types to analyse
 
-# For every lineage in cell_type, run all of the algorithms
+if [ "$cell_types" == "ALL" ] 
+then
+ 
+    dos2unix validation_data/CCLE_${network_choice}/lineages.txt
+    readarray -t cell_types < validation_data/CCLE_${network_choice}/lineages.txt
+
+fi
+
 
 
     memory_usage () {
@@ -144,6 +179,12 @@ fi
         done
         echo $maxmem
     }
+    
+for cell_type in ${cell_types[@]}; do
+    echo -e "\n\n---------------------------"
+    echo -e "Commencing Driver Prioritisation for cell type: $cell_type"
+    echo -e "---------------------------\n\n"
+    
 
     ############################################################
     # Run DawnRank                                             #
@@ -151,6 +192,9 @@ fi
     
     if (($run_DawnRank==1))
     then
+        echo -e "\n\n---------------------------"
+        echo -e "Running DawnRank for $cell_type"
+        echo -e "---------------------------\n\n"
         # Start time
         start=$(date +%s.%N)
         Rscript --vanilla "scripts/run_DawnRank.R" -n $network_choice -c $cell_type > log/DawnRank_$cell_type.log &
@@ -162,6 +206,13 @@ fi
         # Measure time difference
         #runtime=$(echo "$end - $start" | bc -l)
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running DawnRank"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
         # Save log information to a file
         echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/DawnRank_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> log/DawnRank_${cell_type}_stats.txt
@@ -173,6 +224,10 @@ fi
     
     if (($run_PRODIGY==1))
     then
+        echo -e "\n\n---------------------------"
+        echo -e "Running PRODIGY for $cell_type"
+        echo -e "---------------------------\n\n"
+        
         # Start time
         start=$(date +%s.%N)
         Rscript --vanilla "scripts/run_PRODIGY.R" -n $network_choice -c $cell_type > log/PRODIGY_$cell_type.log &
@@ -183,6 +238,13 @@ fi
         end=$(date +%s.%N)
         # Measure time difference
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running PRODIGY"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
         # Save log information to a file
         echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/PRODIGY_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> log/PRODIGY_${cell_type}_stats.txt
@@ -194,6 +256,11 @@ fi
     
     if (($run_OncoImpact==1))
     then
+        echo -e "\n\n---------------------------"
+        echo -e "Running OncoImpact for $cell_type"
+        echo -e "---------------------------\n\n"
+        
+        
         Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type
         # Start time
         start=$(date +%s.%N)
@@ -209,6 +276,13 @@ fi
         end=$(date +%s.%N)
         # Measure time difference
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running PRODIGY"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
         # Save log information to a file
         echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/OncoImpact_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> log/OncoImpact_${cell_type}_stats.txt
@@ -226,6 +300,10 @@ fi
     
     if (($run_PersonaDrive==1))
     then
+        echo -e "\n\n---------------------------"
+        echo -e "Running PersonaDrive for $cell_type"
+        echo -e "---------------------------\n\n"
+        
         Rscript --vanilla "scripts/prepare_PersonaDrive_data.R" -n $network_choice -c $cell_type
         echo "1. Personalized Bipartite Networks (PBNs)..." > log/PersonaDrive_$cell_type.log
 
@@ -249,6 +327,13 @@ fi
         end=$(date +%s.%N)
         # Measure time difference
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running PersonaDrive"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
         # Save log information to a file
         echo -e "Runtime_sec\tPeak_VmRSS" > log/PersonaDrive_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> log/PersonaDrive_${cell_type}_stats.txt
@@ -262,6 +347,10 @@ fi
     
     if (($run_SCS==1))
     then
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Running SCS for $cell_type"
+        echo -e "---------------------------\n\n"
         
         mkdir -p results/CCLE_$network_choice/SCS/$cell_type
         # Prepare input data
@@ -282,6 +371,13 @@ fi
         end=$(date +%s.%N)
         # Measure time difference
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running SCS"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
         # Save log information to a file
         echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/SCS_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/SCS_${cell_type}_stats.txt
@@ -301,6 +397,9 @@ fi
     
     if (($run_PNC==1))
     then
+        echo -e "\n\n---------------------------"
+        echo -e "Running PNC for $cell_type"
+        echo -e "---------------------------\n\n"
         
         mkdir -p results/CCLE_$network_choice/PNC/$cell_type
         # Prepare input data
@@ -321,6 +420,13 @@ fi
         end=$(date +%s.%N)
         # Measure time difference
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running PNC"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
         # Save log information to a file
         echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/PNC_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/PNC_${cell_type}_stats.txt
@@ -329,3 +435,5 @@ fi
         Rscript --vanilla "scripts/format_PNC_results.R" -n $network_choice -c $cell_type
         
     fi
+    
+    done

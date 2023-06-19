@@ -49,7 +49,8 @@ cell_list <- read_csv("data/cell_list.csv")
 
 CCLE_sample_info <- read_csv("data/CCLE/Model.csv") %>%
   dplyr::rename(DepMap_ID=ModelID, lineage=OncotreeLineage, cell_ID=StrippedCellLineName) %>%
-  filter(cell_ID %in% cell_list$cell_ID)
+  filter(cell_ID %in% cell_list$cell_ID) %>%
+  mutate(lineage=gsub(" |/","_",lineage))
 
 CCLE_model_profile <- read_csv("data/CCLE/OmicsDefaultModelProfiles.csv") %>%
   dplyr::rename(DepMap_ID=ModelID)
@@ -488,6 +489,13 @@ write_csv(CCLE_sample_info, paste0(DATA_DIR,"/sample_info.csv"))
 write_csv(network_directed, paste0(DATA_DIR,"/network_directed.csv"))
 write_csv(network_undirected, paste0(DATA_DIR,"/network_undirected.csv"))
 write_csv(gold_standards, paste0(DATA_DIR,"/gold_standards.csv"))
+write.table(CCLE_sample_info %>% dplyr::select(lineage) %>% arrange(lineage) %>% unique, 
+            sep="\t", 
+            col.names=FALSE, 
+            row.names=FALSE, 
+            quote = FALSE,
+            eol = "\n",
+            file = paste0(DATA_DIR,"/lineages.txt"))
 
 #########################
 # Summaries

@@ -35,16 +35,18 @@ network_conf_th=0.4
 prepare_data=0
 
 ########################
-# Cell Type
+# Cell Types
 ########################
 
-# CCLE Cell type to analyse
+# CCLE Cell types to analyse
 # Options --
   # "ALL" - Loops through all cell types present in the data files
-  # Single lineage (eg. "Liver", "Breast", "Skin", etc.)
+  # Single lineage (eg. "Liver")
+  # Multiple lineages (eg. ("Liver" "Brain" "Skin"))
 
-cell_type="Liver"
-
+#cell_types=("Liver" "Skin")
+cell_types="ALL"
+#cell_types="Biliary_Tract"
 
 ########################
 # Gold Standards
@@ -73,12 +75,12 @@ global_alpha=0.1
   # 0 - Do not run
   # 1 - Run
 
-run_DawnRank=0
+run_DawnRank=1
 run_PRODIGY=0
 run_OncoImpact=0
 run_PersonaDrive=0
 run_SCS=0
-run_PNC=1
+run_PNC=0
 
 
 
