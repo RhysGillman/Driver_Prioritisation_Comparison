@@ -44,8 +44,8 @@ prepare_data=0
   # Single lineage (eg. "Liver")
   # Multiple lineages (eg. ("Liver" "Brain" "Skin"))
 
-#cell_types=("Liver" "Skin")
-cell_types="ALL"
+cell_types=("Liver" "Skin")
+#cell_types="ALL"
 #cell_types="Biliary_Tract"
 
 ########################
@@ -75,12 +75,13 @@ global_alpha=0.1
   # 0 - Do not run
   # 1 - Run
 
-run_DawnRank=1
+run_DawnRank=0
 run_PRODIGY=0
 run_OncoImpact=0
 run_PersonaDrive=0
 run_SCS=0
 run_PNC=0
+run_combined_de_novo=1
 
 
 

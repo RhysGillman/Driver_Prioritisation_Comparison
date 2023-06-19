@@ -1,4 +1,4 @@
-function [ MMS,MDS,NCU,NCD, out_deg, in_deg ] = benchmark_control( data,ref_data,gene_list,Network_method_index )
+function [ MMS,MDS,NCU,NCD, out_deg, in_deg ] = benchmark_control( data,ref_data,gene_list,Network_method_index,network_fileName )
 %we output the sample-specific driver profiles by using different control
 %methods
 %   Input:
@@ -17,7 +17,7 @@ function [ MMS,MDS,NCU,NCD, out_deg, in_deg ] = benchmark_control( data,ref_data
 %************************part1:LOAD sample data and network data************************
 %********************obtain the paired expression data******************
 index=Network_method_index;
-load('../../Driver_Gene_Targeting/CCLE_only_validation_data/de_novo_networks_input/STRING11_network_directed.mat')
+load(network_fileName)
 %load('GIN_network_information.mat')% Hou JP, Ma J. DawnRank: discovering personalized driver genes in cancer. Genome Medicine. 2014;6(7):56. doi: 10.1186/S14073-014-0056-8.
 %load('sPPI_network_information.mat') % Vinayagam A, Stelzl U, Foulle R, Plassmann S, Zenkner M, Timm J, et al. A Directed Protein Interaction Network for Investigating Intracellular Signal Transduction. Science Signaling. 2011;4(189):rS9-rs. doi: 10.1126/scisignal.2001699.
 %[~,PPI,~]=xlsread('network_FIsInGene_041709.xlsx'); % Bertrand D, Chng KR, Sherbaf FG, Kiesel A, Chia BK, Sia YY, et al. Patient-specific driver gene prediction and risk assessment through integrated network analysis of cancer omics profiles. Nucleic acids research 2015;43:e44-e

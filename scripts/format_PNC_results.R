@@ -103,6 +103,6 @@ PNC_results <- PNC_drivers %>%
   ungroup() %>%
   dplyr::mutate(lineage = cell_type) %>%
   arrange(sample, rank) %>%
-  select(lineage, cell_ID = sample, driver = gene_ID, rank)
+  dplyr::select(lineage, cell_ID = sample, driver = gene_ID, rank)
 
 write_csv(PNC_results, paste0("results/CCLE_",network_choice,"/PNC/",cell_type,".csv"))

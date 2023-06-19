@@ -436,4 +436,60 @@ for cell_type in ${cell_types[@]}; do
         
     fi
     
+    
+    ############################################################
+    # Run De Novo Methods                                      #
+    ############################################################
+    
+    if (($run_combined_de_novo==1))
+    then
+        echo -e "\n\n---------------------------"
+        echo -e "Running Combined De Novo Methods for $cell_type"
+        echo -e "---------------------------\n\n"
+        
+        mkdir -p results/CCLE_$network_choice/combined_de_novo_methods/$cell_type
+        # Prepare input data
+        Rscript --vanilla "scripts/prepare_combined_de_novo_methods_data.R" -n $network_choice -c $cell_type
+        cd scripts
+        matlab -batch "create_matlab_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
+        cd combined_de_novo_methods
+
+        # Start time
+        start=$(date +%s.%N)
+
+        matlab -batch "main_Benchmark_control('$network_choice', '$cell_type', '$gurobi_path')" > $SCRIPT_DIR/log/combined_de_novo_methods_$cell_type.log &
+        pid=$!
+
+        max_mem=$( memory_usage $pid )
+
+        wait $pid
+        end=$(date +%s.%N)
+        # Measure time difference
+        runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running combined de novo methods"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
+        # Save log information to a file
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/combined_de_novo_methods_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/combined_de_novo_methods_${cell_type}_stats.txt
+
+        cd $SCRIPT_DIR
+        Rscript --vanilla "scripts/format_combined_de_novo_methods_results.R" -n $network_choice -c $cell_type
+        
+    fi
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     done
