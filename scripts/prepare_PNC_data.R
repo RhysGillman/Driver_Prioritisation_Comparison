@@ -21,8 +21,6 @@ opt = parse_args(opt_parser);
 
 network_choice <- opt$network
 cell_type <- opt$celltype
-WORK_DIR <- opt$work
-threads <- opt$threads
 
 
 #############################

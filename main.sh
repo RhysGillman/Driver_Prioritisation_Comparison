@@ -143,11 +143,11 @@ then
     echo -e "\n\n---------------------------"
     echo -e "Step 1: Choosing cells"
     echo -e "---------------------------\n\n"
-    #Rscript --vanilla "scripts/choose_cells.r" -w $SCRIPT_DIR > log/prepare_data.log
+    Rscript --vanilla "scripts/choose_cells.r" -w $SCRIPT_DIR > log/prepare_data.log
     echo -e "\n\n---------------------------"
     echo -e "Step 2: Identifying Gold-Standard Sensitive Genes"
     echo -e "---------------------------\n\n"
-    #Rscript --vanilla "scripts/prepare_all_gold_standards.r" -l $local_alpha -g $global_alpha >> log/prepare_data.log
+    Rscript --vanilla "scripts/prepare_all_gold_standards.r" -l $local_alpha -g $global_alpha >> log/prepare_data.log
     echo -e "\n\n---------------------------"
     echo -e "Step 3: Filtering and reformatting data"
     echo -e "---------------------------\n\n"
@@ -481,11 +481,6 @@ for cell_type in ${cell_types[@]}; do
         Rscript --vanilla "scripts/format_combined_de_novo_methods_results.R" -n $network_choice -c $cell_type
         
     fi
-    
-    
-    
-    
-    
     
     
     

@@ -224,7 +224,8 @@ CCLE_mutations <- read_csv("data/CCLE/OmicsSomaticMutations.csv") %>%
   # Removing silent mutations
   filter(VariantInfo != "SILENT") %>%
   # Removing cell lines not included in analysis
-  filter(!is.na(cell_ID)) 
+  filter(!is.na(cell_ID))  %>%
+  dplyr::relocate(cell_ID)
 
 
 CCLE_mutation_matrix <- CCLE_mutations %>%
@@ -248,7 +249,7 @@ print(paste0(
 # Convert 2 column DF into matrix
 CCLE_mutation_matrix <- table(CCLE_mutation_matrix) %>% as.data.frame.matrix() %>% t() %>% as.data.frame()
 
-rm(CCLE_mutations)
+#rm(CCLE_mutations)
 
 
 
@@ -437,6 +438,7 @@ cell_list <- intersect(cell_list, CCLE_sample_info$cell_ID)
 CCLE_counts <- CCLE_counts[,cell_list]
 CCLE_tpm <- CCLE_tpm[,cell_list]
 CCLE_mutation_matrix <- CCLE_mutation_matrix[,cell_list]
+CCLE_mutations <- CCLE_mutations %>% filter(cell_ID %in% cell_list)
 CCLE_copy_number_corrected <- CCLE_copy_number_corrected[,cell_list]
 CCLE_sample_info <- CCLE_sample_info %>% filter(cell_ID %in% cell_list)
 CCLE_IDs <- CCLE_IDs %>% filter(cell_ID %in% cell_list)
@@ -470,6 +472,7 @@ gene_list <- unique(append(network_directed$protein_1, network_directed$protein_
 CCLE_counts <- CCLE_counts[gene_list,]
 CCLE_tpm <- CCLE_tpm[gene_list,]
 CCLE_mutation_matrix <- CCLE_mutation_matrix[gene_list,]
+CCLE_mutations <- CCLE_mutations %>% filter(HugoSymbol %in% gene_list)
 CCLE_copy_number_corrected <- CCLE_copy_number_corrected[gene_list,]
 gold_standards <- gold_standards %>% filter(gene_ID %in% gene_list)
 
@@ -484,6 +487,7 @@ dir.create(DATA_DIR)
 write_csv(CCLE_counts %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/counts.csv"))
 write_csv(CCLE_tpm %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/tpm.csv"))
 write_csv(CCLE_mutation_matrix %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/mutations.csv"))
+write_csv(CCLE_mutations, paste0(DATA_DIR,"/mutations_MAF.csv"))
 write_csv(CCLE_copy_number_corrected %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/cnv.csv"))
 write_csv(CCLE_sample_info, paste0(DATA_DIR,"/sample_info.csv"))
 write_csv(network_directed, paste0(DATA_DIR,"/network_directed.csv"))
@@ -638,11 +642,3 @@ rm(gold_standards_summary)
 
 
 
-test <- read_csv("validation_data/all_gold_standards_11.csv") %>%
-  group_by(lineage,cell_ID) %>%
-  summarise(total = n(), drug_sensitive = sum(sensitive, na.rm = T), gene_dependent = sum(dependent, na.rm = T)) %>%
-  group_by(lineage) %>%
-  summarise(mean_total = mean(total),
-            mean_drug_sensitive = mean(drug_sensitive),
-            mean_gene_dependent = mean(gene_dependent)
-  )
