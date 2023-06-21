@@ -15,6 +15,7 @@ Help()
    echo "g     Download GDSC data"
    echo "d     Download DGIdb data"
    echo "s     Download STRINGv11 data"
+   echo "l     Download LOF/GOF Prediction data"
    echo
 }
 ############################################################
@@ -28,9 +29,10 @@ CCLE_download=0
 GDSC_download=0
 DGI_download=0
 STRINGv11_download=0
+lofgof_download=0
 
 # Process Input Options
-while getopts ":hacgds" option; do
+while getopts ":hacgdsl" option; do
     case $option in
         h) # display Help
             Help
@@ -48,6 +50,8 @@ while getopts ":hacgds" option; do
             DGI_download=1;;
         s) # download STRINGv11 Data
             STRINGv11_download=1;;
+        l) # download STRINGv11 Data
+            lofgof_download=1;;
         \?) # Invalid option
             echo "Error: Invalid option"
             exit;;
@@ -129,7 +133,7 @@ then
     #-------------------------------------------------------------------------
     # STRINGv11
     mkdir -p "$CUR_DIR"/data/STRINGv11
-    cd data/STRINGv11/
+    cd "$CUR_DIR"/data/STRINGv11/
     #v11 directionality
     curl -J -O -L "https://stringdb-static.org/download/protein.actions.v11.0/9606.protein.actions.v11.0.txt.gz"
     #v11 aliases
@@ -137,6 +141,26 @@ then
     # unzipping files
     gunzip 9606.protein.actions.v11.0.txt.gz
     gunzip 9606.protein.aliases.v11.0.txt.gz
+    cd "$CUR_DIR"
+    #-------------------------------------------------------------------------
+fi
+
+
+if (($lofgof_download==1))
+then
+    #-------------------------------------------------------------------------
+    # LOF GOF Mutation Predictions https://itanlab.shinyapps.io/goflof/ 
+    mkdir -p "$CUR_DIR"/data/LOFGOF
+    # https://www.sciencedirect.com/science/article/pii/S0002929721003840
+    
+    cd "$CUR_DIR"/data/LOFGOF/
+    #HGMD-based Annotations
+    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_cf634c0a/session/9c461b3f92ccc7aa68643c0174dc79da/download/downloadFeats2?w=cf634c0a"
+    #ClinVar-based annotations
+    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_b7a74ab1/session/a2d589cf82225c2549976bf29d6793d7/download/downloadDataClinvar2?w=b7a74ab1"
+    # https://www.biorxiv.org/content/10.1101/2022.06.08.495288v2
+    git clone "https://gitlab.com/itan-lab/logofunc-predictions.git"
+
     cd "$CUR_DIR"
     #-------------------------------------------------------------------------
 fi

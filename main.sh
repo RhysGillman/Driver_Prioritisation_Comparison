@@ -89,7 +89,7 @@ fi
 # Setup Symbolic Link                                      #
 ############################################################
 
-if (("$use_symbolic_link" == true));
+if [ "$use_symbolic_link" == true ]
 then
 
   rm "$link_location/Driver_Prioritisation_Comparison_Pipeline"
@@ -98,7 +98,7 @@ then
   echo -e "---------------------------\n\n"
   mkdir -p "$link_location"
   # The below code is needed to add permissions for symoblic links when working in windows Git Bash
-  if(("$windows_mode" == true));
+  if [ "$windows_mode" == true ]
     then
     export MSYS=winsymlinks:nativestrict
   fi
