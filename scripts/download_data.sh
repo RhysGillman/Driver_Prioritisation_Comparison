@@ -156,9 +156,10 @@ then
     
     cd "$CUR_DIR"/data/LOFGOF/
     #HGMD-based Annotations
-    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_cf634c0a/session/9c461b3f92ccc7aa68643c0174dc79da/download/downloadFeats2?w=cf634c0a"
+    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_b092bf15/session/3bada5aad4f1c8cecdf7ef63ca3ed28c/download/downloadFeats2?w=b092bf15"
     #ClinVar-based annotations
-    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_b7a74ab1/session/a2d589cf82225c2549976bf29d6793d7/download/downloadDataClinvar2?w=b7a74ab1"
+    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_b092bf15/session/3bada5aad4f1c8cecdf7ef63ca3ed28c/download/downloadDataClinvar2?w=b092bf15"
+    
     # https://www.biorxiv.org/content/10.1101/2022.06.08.495288v2
     git clone "https://gitlab.com/itan-lab/logofunc-predictions.git"
 
