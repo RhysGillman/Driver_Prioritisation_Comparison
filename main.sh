@@ -117,6 +117,10 @@ fi
 # Setup Directories                                        #
 ############################################################
 
+mkdir -p log
+mkdir -p validation_data
+mkdir -p plots/QC
+mkdir -p tmp
 mkdir -p results/CCLE_$network_choice
 
 ############################################################

@@ -507,7 +507,10 @@ write.table(CCLE_sample_info %>% dplyr::select(lineage) %>% arrange(lineage) %>%
 
 SUMMARY_DIR <- paste0(DATA_DIR, "/summary_info")
 
-dir.create(SUMMARY_DIR)
+if(!dir.exists(SUMMARY_DIR)){
+  dir.create(SUMMARY_DIR)
+}
+
 
 # Cell Counts
 write_csv(
