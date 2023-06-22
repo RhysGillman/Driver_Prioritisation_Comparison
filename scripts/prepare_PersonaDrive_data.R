@@ -130,7 +130,7 @@ write.csv(mutation, "tmp/tmp_PersonaDrive_MUT.csv", quote = FALSE)
 
 
 if(!dir.exists(paste0("results/CCLE_",network_choice,"/PersonaDrive/",cell_type))){
-  dir.create(paste0("results/CCLE_",network_choice,"/PersonaDrive/",cell_type))
+  dir.create(paste0("results/CCLE_",network_choice,"/PersonaDrive/",cell_type), recursive = T)
 }
 
 
