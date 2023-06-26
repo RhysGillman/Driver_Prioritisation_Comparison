@@ -50,6 +50,9 @@ get_outliers <- function(Matrix, alpha){
   result <- apply(Matrix, 2, function(x) gesd(x, alpha = alpha, value.zscore = "NO", r = nrow(Matrix)/2))
 }
 
+# Note, the above test assumes normally distributed data, whihc is likely not true in this case.
+# Could consider changing to using Median Absolute Deviation
+
 #############################
 # Get cell list
 ###############################

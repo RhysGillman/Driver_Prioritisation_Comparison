@@ -264,19 +264,19 @@ for cell_type in ${cell_types[@]}; do
         echo -e "Running OncoImpact for $cell_type"
         echo -e "---------------------------\n\n"
         
-        
+        # Prepare data files for OncoImpact and store in tmp/
         Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type
         # Start time
         start=$(date +%s.%N)
-
-        perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg > log/OncoImpact_$cell_type.log & 
+        ####### Running OncoImpact ########
+        perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg &> log/OncoImpact_$cell_type.log & 
 
         # Get the process ID (PID) of the  script
         pid=$!
+        # Monitor memory usage while running and wait until the process is done
         max_mem=$( memory_usage $pid )
-
         wait $pid
-
+        # Get finish time
         end=$(date +%s.%N)
         # Measure time difference
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
@@ -290,9 +290,10 @@ for cell_type in ${cell_types[@]}; do
         # Save log information to a file
         echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/OncoImpact_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> log/OncoImpact_${cell_type}_stats.txt
-
-
+  
+        # Formatting results
         Rscript --vanilla "scripts/format_OncoImpact_results.R" -n $network_choice -c $cell_type
+        # Remove temporary files
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/ANALYSIS"
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/COMPLETE_SAMPLES"
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/INCOMPLETE_SAMPLES"
