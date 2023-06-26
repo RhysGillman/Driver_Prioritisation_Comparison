@@ -282,7 +282,7 @@ for cell_type in ${cell_types[@]}; do
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
         
         echo -e "\n\n---------------------------"
-        echo -e "Finished running PRODIGY"
+        echo -e "Finished running OncoImpact"
         echo -e "Time Taken: $runtime seconds"
         echo -e "Peak Memory Usage: $max_mem KiB"
         echo -e "---------------------------\n\n"
