@@ -24,7 +24,7 @@ cell_type <- opt$celltype
 
 
 
-rm(OncoImpact_results)
+suppressWarnings(rm(OncoImpact_results))
 
 for(result_file in list.files(paste0("results/CCLE_",network_choice,"/OncoImpact/",cell_type,"/sample_driver_list/"))){
   cell_ID <- gsub("\\.txt", "", result_file)
