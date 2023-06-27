@@ -452,7 +452,7 @@ foreach $s (keys %sample_driver){
     #in case of same value (possible if in same module) order according to average gene impact in the whole samples
     
     $file = "$sample_out_dir/$s.txt";
-    `echo -e \"$SAMPLE_DATA_HEADER\" > $file`;
+    `printf \"$SAMPLE_DATA_HEADER\" > $file`;
     `sort -k3,3 -nr -k4,4 -nr $sample_out_dir/temp.dat >> $file`;
     
     #$file = "$sample_out_dir/driver_$s.dat";
