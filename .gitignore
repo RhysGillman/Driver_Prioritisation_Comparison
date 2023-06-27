@@ -37,3 +37,20 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+
+#Output Directories
+results/
+tmp/
+validation_data/
+plots/
+log/
+
+#Data directories
+data/CCLE/
+data/DGIdb
+data/GDSC
+data/LOFGOF
+data/STRINGv11
+data/PRODIGY_pathways.rds
+
