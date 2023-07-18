@@ -23,7 +23,9 @@ option_list = list(
   make_option(c("-n", "--network"), type="character", default="STRINGv11", 
               help="network to use", metavar ="Network"),
   make_option(c("-c", "--celltype"), type="character", default="Liver", 
-              help="cell type to analyse", metavar ="Network")
+              help="cell type to analyse", metavar ="Network"),
+  make_option(c("-t", "--threads"), type="character", default=4, 
+              help="Number of threads to use", metavar ="Threads")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -31,6 +33,7 @@ opt = parse_args(opt_parser);
 
 network_choice <- opt$network
 cell_type <- opt$celltype
+threads <- opt$threads
 
 #############################
 # Functions
@@ -84,7 +87,7 @@ mutation <- mutation[genes, samples]
 # Pathways
 
 if(!file.exists("data/PRODIGY_pathways.rds")){
-  pathways <- get_pathway_list_from_graphite(source = "reactome",minimal_number_of_nodes = 10,num_of_cores = 1)
+  pathways <- get_pathway_list_from_graphite(source = "reactome",minimal_number_of_nodes = 10,num_of_cores = threads)
   write_rds(pathways, "data/PRODIGY_pathways.rds")
 }else{
   pathways <- read_rds("data/PRODIGY_pathways.rds")
@@ -127,7 +130,7 @@ for(sample in samples){
     diff_genes = diff_genes,
     alpha = 0.05,
     pathway_list = pathways,
-    num_of_cores = 1,
+    num_of_cores = threads,
     sample_origins = sample_origins,
     write_results = F,
     results_folder = "./",

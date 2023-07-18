@@ -234,7 +234,7 @@ for cell_type in ${cell_types[@]}; do
         
         # Start time
         start=$(date +%s.%N)
-        Rscript --vanilla "scripts/run_PRODIGY.R" -n $network_choice -c $cell_type > log/PRODIGY_$cell_type.log &
+        Rscript --vanilla "scripts/run_PRODIGY.R" -n $network_choice -c $cell_type -t $threads > log/PRODIGY_$cell_type.log &
         # Get the process ID (PID) of the  script
         pid=$!
         max_mem=$( memory_usage $pid )
@@ -265,7 +265,7 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Prepare data files for OncoImpact and store in tmp/
-        Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type
+        Rscript --vanilla "scripts/prepare_OncoImpact_data.R" -w "$SCRIPT_DIR" -n $network_choice -c $cell_type -t $threads
         # Start time
         start=$(date +%s.%N)
         ####### Running OncoImpact ########

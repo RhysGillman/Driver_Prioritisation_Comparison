@@ -1,4 +1,9 @@
 ########################
+# General
+########################
+threads=4
+
+########################
 # Dependencies
 ########################
 
@@ -45,8 +50,8 @@ prepare_data=0
   # Multiple lineages (eg. ("Liver" "Brain" "Skin"))
 
 #cell_types=("Liver" "Skin")
-cell_types="ALL"
-#cell_types="Biliary_Tract"
+#cell_types="ALL"
+cell_types="Skin"
 
 ########################
 # Gold Standards
@@ -76,12 +81,12 @@ global_alpha=0.1
   # 1 - Run
 
 run_DawnRank=0
-run_PRODIGY=1
+run_PRODIGY=0
 run_OncoImpact=1
-run_PersonaDrive=1
-run_SCS=1
-run_PNC=1
-run_combined_de_novo=1
+run_PersonaDrive=0
+run_SCS=0
+run_PNC=0
+run_combined_de_novo=0
 
 
 
