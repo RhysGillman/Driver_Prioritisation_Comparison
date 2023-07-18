@@ -14,8 +14,12 @@ install_dependencies=0
 ########################
 
 # Downloads all required data to the /data directory. Set to 1 if the data needs to be downloaded.
+# Doesn't include very large files which may be better utilised separately
 
 download_data=0
+
+download_large_data=0
+
 
 ########################
 # Gene Interaction Network
@@ -88,6 +92,27 @@ run_SCS=0
 run_PNC=0
 run_combined_de_novo=0
 
+
+########################
+# LOF GOF Annotation
+########################
+# Indicate whether mapping of predicted genomic LOF/GOF annotations is required.
+
+# WARNING!                            This requires ~ 30gb of memory                       WARNING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# Options --
+  # 0 - Do not run
+  # 1 - Run
+
+map_genomic_LOF_GOFs=0
+
+
+# Indicate whether LOF/GOF annotations need to be run
+# Options --
+  # 0 - Do not run
+  # 1 - Run
+  
+run_LOF_GOF_annotations=1
 
 
 ########################

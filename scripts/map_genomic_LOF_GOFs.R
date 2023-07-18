@@ -14,7 +14,9 @@ option_list = list(
   make_option(c("-m", "--mutationfilepath"), type="character", default="data/CCLE/OmicsSomaticMutations.csv", 
               help="Path to mutations file", metavar ="Mutations File Path"),
   make_option(c("-o", "--outputfilepath"), type="character", default="data/LOFGOF/annotated_CCLE_mutations.csv", 
-              help="Path to output file", metavar ="Output File Path")
+              help="Path to output file", metavar ="Output File Path"),
+  make_option(c("-t", "--threads"), type="character", default=4, 
+              help="Number of threads to use", metavar ="Threads")
   
 ); 
 

@@ -16,6 +16,7 @@ Help()
    echo "d     Download DGIdb data"
    echo "s     Download STRINGv11 data"
    echo "l     Download LOF/GOF Prediction data"
+   echo "L     Download larger LOF/GOF Prediction data (Warning Large File)"
    echo
 }
 ############################################################
@@ -30,6 +31,7 @@ GDSC_download=0
 DGI_download=0
 STRINGv11_download=0
 lofgof_download=0
+lofgof_large_download=0
 
 # Process Input Options
 while getopts ":hacgdsl" option; do
@@ -42,7 +44,8 @@ while getopts ":hacgdsl" option; do
             GDSC_download=1
             DGI_download=1
             STRINGv11_download=1
-            lofgof_download=1;;
+            lofgof_download=1
+            lofgof_large_download=0;;
         c) # download CCLE Data
             CCLE_download=1;;
         g) # download GDSC Data
@@ -51,8 +54,10 @@ while getopts ":hacgdsl" option; do
             DGI_download=1;;
         s) # download STRINGv11 Data
             STRINGv11_download=1;;
-        l) # download STRINGv11 Data
+        l) # download small LOFGOF Data
             lofgof_download=1;;
+        L) # download large LOFGOF Data
+            lofgof_large_download=1;;
         \?) # Invalid option
             echo "Error: Invalid option"
             exit;;
@@ -156,12 +161,30 @@ then
     
     cd "$CUR_DIR"/data/LOFGOF/
     #HGMD-based Annotations
-    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_b092bf15/session/3bada5aad4f1c8cecdf7ef63ca3ed28c/download/downloadFeats2?w=b092bf15"
+    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_719a1fcc/session/e4e040aa8501ad86590a389bae9f6816/download/downloadFeats2?w=719a1fcc"
     #ClinVar-based annotations
-    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_b092bf15/session/3bada5aad4f1c8cecdf7ef63ca3ed28c/download/downloadDataClinvar2?w=b092bf15"
+    curl -J -O -L "https://itanlab.shinyapps.io/goflof/_w_719a1fcc/session/e4e040aa8501ad86590a389bae9f6816/download/downloadDataClinvar2?w=719a1fcc"
+
+    cd "$CUR_DIR"
+    #-------------------------------------------------------------------------
+fi
+
+
+if ((lofgof_large_download==1))
+then
+    #-------------------------------------------------------------------------
+    # LOF GOF Mutation Predictions https://itanlab.shinyapps.io/goflof/ 
+    mkdir -p "$CUR_DIR"/data/LOFGOF
+    # https://www.sciencedirect.com/science/article/pii/S0002929721003840
+    
+    cd "$CUR_DIR"/data/LOFGOF/
     
     # https://www.biorxiv.org/content/10.1101/2022.06.08.495288v2
     git clone "https://gitlab.com/itan-lab/logofunc-predictions.git"
+    
+    cd "logofunc-predictions"
+    
+    gunzip LoGoFuncVotingEnsemble_preds_final.csv.gz
 
     cd "$CUR_DIR"
     #-------------------------------------------------------------------------

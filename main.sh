@@ -135,6 +135,14 @@ then
     bash scripts/download_data.sh -a
 fi
 
+if (($download_large_data==1))
+then
+    echo -e "\n\n---------------------------"
+    echo -e "Downloading Raw Data"
+    echo -e "---------------------------\n\n"
+    bash scripts/download_data.sh -L
+fi
+
 ############################################################
 # Prepare Data                                             #
 ############################################################
@@ -493,3 +501,16 @@ for cell_type in ${cell_types[@]}; do
     
     
     done
+
+############################################################
+# LOF GOF Annotations                                      #
+############################################################
+
+if (($map_genomic_LOF_GOFs==1))
+then
+    echo -e "\n\n---------------------------"
+    echo -e "Mapping genomic level LOF GOF annotations to CCLE mutations"
+    echo -e "WARNING!   This step requires ~ 30gb of memory"
+    echo -e "---------------------------\n\n"
+    Rscript --vanilla "scripts/map_genomic_LOF_GOFs.R" -t $threads
+fi
