@@ -36,7 +36,7 @@ my %gene_to_index;
 my @index_to_gene;
 my @connections;
 
-print STDERR " *** CONSTRUCT NETWORK\n";
+#print STDERR " *** CONSTRUCT NETWORK\n";
 if ( $network_type eq "NETBOX" ) {
 
 	#update not done to save computational time
@@ -76,7 +76,7 @@ my $nb_sample_to_test = -10;
 
 my %BUG_not_present_in_network = ();
 
-print STDERR " *** READ DIR\n";
+#print STDERR " *** READ DIR\n";
 foreach my $dir_sample (@the_DATA_DIR) {
     $mutation_file_name      = "$data_dir/$dir_sample/Genelist_Status.txt";
     if ( -e $mutation_file_name ) {
@@ -217,12 +217,12 @@ for (
 	#print STDERR "\t **** $k\n";
 	#1) compute the random IDs
 
-	print STDERR " *** $nb_random_sample_tested ";    #<STDIN>;
+	#print STDERR " *** $nb_random_sample_tested ";    #<STDIN>;
 
 	#$random_ID_mut = compute_random_ID(\@index_to_gene, -12);
 	#$random_ID_dys = compute_random_ID(\@index_to_gene, $gene_ID);
 
-	print STDERR " ---\n";                            #<STDIN>;
+	#print STDERR " ---\n";                            #<STDIN>;
 
 	$random_freq    = 0;
 	@explained_line = ();    #0 gene not explaine for the sample, 1 explained

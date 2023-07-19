@@ -104,7 +104,7 @@ foreach my $dir_sample (@the_DATA_DIR) {
 	$nb_mutated_gene = 0;
 	
 	open( FILE, "$mutation_file_name" );
-	print STDERR " *** read file $mutation_file_name\n";
+	#print STDERR " *** read file $mutation_file_name\n";
 	
 	#read the file to obtain the dysregulated and mutated genes
 	while (<FILE>) {
@@ -236,7 +236,7 @@ else {
     close(DIR);
     print STDERR " *** SECOND STEP @the_PARAM_DIR\n";
     foreach my $real_sub_sample_dir (@the_PARAM_DIR) {
-	print STDERR " *** file name $real_sub_sample_dir\n";
+	#print STDERR " *** file name $real_sub_sample_dir\n";
 	if ( index( $real_sub_sample_dir, "REAL" ) != -1 ) {
 
 	    #Get the sample of the real subsample data
@@ -253,7 +253,7 @@ else {
 
 	    foreach $depth_th (@length_th) {
 		$f = "$dir_res/exp_gene_freq_$depth_th\_$hub_th.dat.gz";
-		print STDERR " *** res_file $f\n";
+		#print STDERR " *** res_file $f\n";
 		open( OUT, " | gzip -c >$f" );
 		for ( $i = 0 ; $i < @index_to_gene ; $i++ ) {
 		    for ( my $dys_status = 0 ; $dys_status < 2 ; $dys_status++ )
