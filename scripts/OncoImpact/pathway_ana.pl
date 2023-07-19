@@ -148,8 +148,8 @@ if ($RUN_TEST_PARAM) {
     $MAX_HUB_THRESHOLD = 0.01*$NB_GENE_IN_NETWORK;
     
     
-    print "Finding optimal prarmeters to give dysregulated genes > $MIN_MEDIAN_DISREGULATED_GENE and < $MAX_DYSREG_GENE";
-    print "Hub thresholds: min = $MIN_HUB_THRESHOLD, max = $MAX_HUB_THRESHOLD";
+    print "Finding optimal prarmeters to give dysregulated genes > $MIN_MEDIAN_DISREGULATED_GENE and < $MAX_DYSREG_GENE\n";
+    print "Hub thresholds: min = $MIN_HUB_THRESHOLD, max = $MAX_HUB_THRESHOLD\n";
 	
 #to compute the min and max log fold change that will be in the interval [1 - 3] with op of 0.5
 	my %median_sample_diff_gene = ();

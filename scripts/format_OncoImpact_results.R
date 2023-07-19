@@ -26,7 +26,7 @@ cell_type <- opt$celltype
 
 suppressWarnings(rm(OncoImpact_results))
 
-for(result_file in list.files(paste0("results/CCLE_",network_choice,"/OncoImpact/",cell_type,"/sample_driver_list/"))){
+for(result_file in list.files(paste0("results/CCLE_",network_choice,"/OncoImpact/",cell_type,"/sample_driver_list/"), pattern = ".txt$")){
   cell_ID <- gsub("\\.txt", "", result_file)
   result <- read_tsv(paste0("results/CCLE_",network_choice,"/OncoImpact/",cell_type,"/sample_driver_list/", result_file)) %>%
     dplyr::select(gene_ID = `#GENE`, impact = SAMPLE_IMPACT) %>%
