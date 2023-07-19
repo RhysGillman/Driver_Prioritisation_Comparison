@@ -24,12 +24,22 @@ cell_type <- opt$celltype
 
 
 
-rm(SCS_results)
+suppressWarnings(rm(SCS_results))
 results_names <- read_csv(paste0("results/CCLE_",network_choice,"/SCS/",cell_type,"/sample_names.txt")) %>% deframe()
 for(result in names(results_names)){
   path <- paste0("results/CCLE_",network_choice,"/SCS/",cell_type,"/result_sample_",result,".csv")
   if(file.exists(path)){
-    tmp <- read_csv(path, skip = 1, col_names = c("gene_ID", "module", "impact")) %>%
+    tmp <- read_csv(path, skip = 1, col_names = c("gene_ID", "module", "impact"))
+    
+    # The below is required for some borken outputs that do not quote the module vector
+    
+    if(ncol(tmp) > 3){
+      tmp <- tmp %>%
+        unite("module_fixed", 2:(ncol(tmp)-1), sep = ",", na.rm=T)
+      colnames(tmp) <- c("gene_ID", "module", "impact")
+    }
+    
+    tmp <- tmp %>%
       arrange(desc(impact)) %>%
       mutate(rank = row_number(), cell_ID=results_names[result])
     if(!exists("SCS_results")){
