@@ -33,8 +33,8 @@ if($data_type eq "RNA_SEQ"){
     $MAX_LOG2_FOLD_CHANGE_THRESHOLD = 1;
 }
 
-$MIN_HUB_THRESHOLD = 10;
-$MAX_HUB_THRESHOLD = 100;
+#$MIN_HUB_THRESHOLD = 10;
+#$MAX_HUB_THRESHOLD = 100;
 
 if(defined $test_case && $test_case eq "TEST"){
     $SAMPLE_USED_DURING_PARAM_EXTIMATION = 10;
@@ -142,8 +142,14 @@ if ($RUN_TEST_PARAM) {
     
     $MIN_MEDIAN_DISREGULATED_GENE = 0.025*$NB_GENE_IN_NETWORK;
     
-    print "Finding optimal prarmeters to give dysregulated genes > $MIN_MEDIAN_DISREGULATED_GENE and < $MAX_FRAC_DISREGULATED_GENE*$NB_GENE_IN_NETWORK";
-
+    $MAX_DYSREG_GENE = $MAX_FRAC_DISREGULATED_GENE*$NB_GENE_IN_NETWORK;
+    
+    $MIN_HUB_THRESHOLD = 0.001*$NB_GENE_IN_NETWORK;
+    $MAX_HUB_THRESHOLD = 0.01*$NB_GENE_IN_NETWORK;
+    
+    
+    print "Finding optimal prarmeters to give dysregulated genes > $MIN_MEDIAN_DISREGULATED_GENE and < $MAX_DYSREG_GENE";
+    print "Hub thresholds: min = $MIN_HUB_THRESHOLD, max = $MAX_HUB_THRESHOLD";
 	
 #to compute the min and max log fold change that will be in the interval [1 - 3] with op of 0.5
 	my %median_sample_diff_gene = ();
