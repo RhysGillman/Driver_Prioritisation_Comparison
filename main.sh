@@ -228,6 +228,8 @@ for cell_type in ${cell_types[@]}; do
         # Save log information to a file
         echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/DawnRank_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> log/DawnRank_${cell_type}_stats.txt
+        
+        
     fi
     
     ############################################################
@@ -305,6 +307,11 @@ for cell_type in ${cell_types[@]}; do
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/ANALYSIS"
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/COMPLETE_SAMPLES"
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/INCOMPLETE_SAMPLES"
+        rm tmp/tmp_OncoImpact_cnv.txt
+        rm tmp/tmp_OncoImpact_config.cfg
+        rm tmp/tmp_OncoImpact_EXP.txt
+        rm tmp/tmp_OncoImpact_network.txt
+        rm tmp/tmp_OncoImpact_SNP.txt
     fi
     
     ############################################################
@@ -340,6 +347,13 @@ for cell_type in ${cell_types[@]}; do
         end=$(date +%s.%N)
         # Measure time difference
         runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        # Take greatest maxmem value
+        if [ $max_mem1 -gt $max_mem2 ]
+        then
+            max_mem=$max_mem1
+        else
+            max_mem=$max_mem2
+        fi
         
         echo -e "\n\n---------------------------"
         echo -e "Finished running PersonaDrive"
@@ -352,6 +366,11 @@ for cell_type in ${cell_types[@]}; do
         echo -e "$runtime\t$max_mem" >> log/PersonaDrive_${cell_type}_stats.txt
 
         Rscript --vanilla "scripts/format_PersonaDrive_results.R" -n $network_choice -c $cell_type
+        
+        # Remove temporary files
+        rm tmp/tmp_PersonaDrive_DEGs.csv
+        rm tmp/tmp_PersonaDrive_MUT.csv
+        rm tmp/tmp_PersonaDrive_network.tsv
     fi
     
     ############################################################
@@ -399,9 +418,16 @@ for cell_type in ${cell_types[@]}; do
         matlab -batch "get_SCS_results_names('$network_choice', '$cell_type')"
         cd $SCRIPT_DIR
         Rscript --vanilla "scripts/format_SCS_results.R" -n $network_choice -c $cell_type
+        
+        # Remove temporary files
         rm scripts/SCS/CNV_internate.txt
         rm scripts/SCS/EXPR_internate.txt
         rm scripts/SCS/SNP_internate.txt
+        rm tmp/tmp_SCS_cnv.txt
+        rm tmp/tmp_SCS_EXP.txt
+        rm tmp/tmp_SCS_SNP.txt
+        rm tmp/tmp_network.mat
+        
     fi
     
     ############################################################
@@ -447,6 +473,11 @@ for cell_type in ${cell_types[@]}; do
         cd $SCRIPT_DIR
         Rscript --vanilla "scripts/format_PNC_results.R" -n $network_choice -c $cell_type
         
+        
+        # Remove temporary files
+        rm tmp/tmp_PNC_pseudonormal_expression.txt
+        rm tmp/tmp_PNC_tumour_expression.txt
+        rm tmp/tmp_network.mat
     fi
     
     
@@ -493,11 +524,12 @@ for cell_type in ${cell_types[@]}; do
         cd $SCRIPT_DIR
         Rscript --vanilla "scripts/format_combined_de_novo_methods_results.R" -n $network_choice -c $cell_type
         
+        # Remove temporary files
+        rm tmp/tmp_combined_de_novo_methods_pseudonormal_expression.txt
+        rm tmp/tmp_combined_de_novo_methods_tumour_expression.txt
+        rm tmp/tmp_network.mat
+        
     fi
-    
-    
-    
-    
     
     
     done
