@@ -1,4 +1,4 @@
-function [] = main_PNC( network, cell_type, gurobi_path)
+function [] = main_Benchmark_control( network, cell_type, gurobi_path)
 
 addpath(gurobi_path)
 

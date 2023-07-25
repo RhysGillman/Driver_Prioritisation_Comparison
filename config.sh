@@ -139,4 +139,4 @@ windows_mode=true
 
 
 gurobi_path="C:\gurobi1000\win64\matlab"
-  
+#gurobi_path="/opt/gurobi1002/linux64/matlab/"  
