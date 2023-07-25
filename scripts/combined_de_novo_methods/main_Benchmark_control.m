@@ -1,4 +1,4 @@
-function [] = main_PNC( network, cell_type, gurobi_path)
+function [] = main_Benchmark_control( network, cell_type, gurobi_path)
 
 addpath(gurobi_path)
 
@@ -15,8 +15,8 @@ addpath(gurobi_path)
 %**************Part 1:Input the information of samples and network information****
 %**************sample information**************
 
-expression_tumor_fileName = '../../tmp/tmp_PNC_tumour_expression.txt';
-expression_normal_fileName = '../../tmp/tmp_PNC_pseudonormal_expression.txt';
+expression_tumor_fileName = '../../tmp/tmp_combined_de_novo_methods_tumour_expression.txt';
+expression_normal_fileName = '../../tmp/tmp_combined_de_novo_methods_pseudonormal_expression.txt';
 network_fileName = '../../tmp/tmp_network.mat';
 
 

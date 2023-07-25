@@ -62,7 +62,7 @@ for(sample in samples){
   
 }
 
-rm(tmp_pseudonormal_rna, other_rna)
+suppressWarnings(rm(tmp_pseudonormal_rna, other_rna))
 
 # Formatting
 
