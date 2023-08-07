@@ -468,9 +468,22 @@ NCG_weight=5
 CancerMine_weight=1
 
 mutation <- mutation %>%
-  mutate(LOF_total_score=sum(associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_oncogene*CancerMine_weight,NCG_oncogene*NCG_weight,CGC_oncogene*CGC_weight, na.rm = T)) %>%
-  mutate(GOF_total_score=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_tsg*CancerMine_weight,NCG_tsg*NCG_weight,CGC_tsg*CGC_weight, na.rm = T)) %>%
+  # Gain of functin or Oncogene
+  mutate(LOF_total_score=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_oncogene*CancerMine_weight,NCG_oncogene*NCG_weight,CGC_oncogene*CGC_weight, na.rm = T)) %>%
+  # Loss of function or TSG
+  mutate(GOF_total_score=sum(associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_tsg*CancerMine_weight,NCG_tsg*NCG_weight,CGC_tsg*CGC_weight, na.rm = T)) %>%
   mutate(final_prediction=ifelse(GOF_total_score>LOF_total_score, "GOF", "LOF"))
+
+
+LOF_GOF_annotation_stats <- mutation %>%
+  mutate(annotation_available=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_oncogene,NCG_oncogene,CGC_oncogene,
+                                  associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_tsg,NCG_tsg,CGC_tsg, na.rm = T)) %>%
+  mutate(annotation_available=annotation_available!=0)
+
+
+write("Loss-of-function / Gain-of-function Mutation Predictions\n--------------\n", "log/LOF_GOF_annotation_stats.txt")
+write.table(LOF_GOF_annotation_stats %>% group_by(annotation_available) %>% summarise(count=n()), "log/LOF_GOF_annotation_stats.txt", append = T, sep = "\t", row.names = F)
+write("\n--------------\n", "log/LOF_GOF_annotation_stats.txt", append = T)
 
 
 
@@ -493,6 +506,9 @@ LOF_GOF_annotations <- mutation %>%
   summarise(annotation=paste0(annotation, collapse = "and")) %>%
   ungroup() %>%
   mutate(annotation=ifelse(str_detect(annotation,"and"),"both",annotation))
+
+write("Final predictions made. Note: Missing predictions assigned to 'LOF'\n--------------\n","log/LOF_GOF_annotation_stats.txt",append = T)
+write.table(LOF_GOF_annotations %>% group_by(annotation) %>% summarise(count=n()), "log/LOF_GOF_annotation_stats.txt", append = T,sep = "\t", row.names = F)
 
 
 write_csv(LOF_GOF_annotations,"data/LOF_GOF_annotations.csv")
