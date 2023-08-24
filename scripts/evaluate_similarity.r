@@ -38,6 +38,7 @@ samples <- sample_info$cell_ID %>% sort()
 #############################
 
 algorithms <- "-combined_de_novo_methods"
+algorithms <- "ALL"
 
 suppressWarnings(rm(aggregated_results))
 for(alg in list.dirs(paste0("results/CCLE_",network_choice), recursive = F)){
@@ -154,7 +155,7 @@ for(alg_pair in alg_pairs){
 
 summarised_cos_sim <- combined_sim %>%
   group_by(algorithm_1,algorithm_2,top_n) %>%
-  summarise(mean_cos_sim = mean(cos_sim)) %>%
+  summarise(mean_cos_sim = mean(cos_sim, na.rm = T)) %>%
   mutate(mean_cos_dist = 1-mean_cos_sim)
 
 #ggplot(summarised_cos_sim, aes(x=top_n,y=mean_cos_dist)) +
@@ -175,7 +176,7 @@ for(n in top_ns){
     as.matrix()
   dist_matrix <- dist_matrix[sort(unique(aggregated_results$algorithm)),sort(unique(aggregated_results$algorithm))]
   
-  mds <- isoMDS(dist_matrix, k = 1, tol = 0.1)
+  mds <- isoMDS(dist_matrix, k = 1, tol = 0.1, p = 2)
   
   message(paste0("model stress for n = ",n," is ", mds$stress))
   
@@ -223,6 +224,9 @@ for(n in top_ns){
   
 }
 
+#cos_similarity_plot <- cos_similarity_plot %>%
+#  mutate(log_pos = log10(pos + abs(min(cos_similarity_plot$pos))+1))
+
 
 
 ggplot(cos_similarity_plot %>% mutate(start_label = if_else(n_drivers == min(n_drivers), as.character(algorithm), NA_character_),
@@ -234,10 +238,10 @@ ggplot(cos_similarity_plot %>% mutate(start_label = if_else(n_drivers == min(n_d
   ylab("Cosine Similarity (Dimensionality Reduced)") +
   xlab("Top N Drivers") +
   geom_label_repel(aes(label=start_label),
-                   nudge_x = -1.5,
+                   nudge_x = -5,
                    na.rm = T) +
   geom_label_repel(aes(label=end_label),
-                   nudge_x = 1.5,
+                   nudge_x = 5,
                    na.rm = T) +
   theme_classic() +
   theme(axis.text.y=element_blank(),
@@ -246,7 +250,7 @@ ggplot(cos_similarity_plot %>% mutate(start_label = if_else(n_drivers == min(n_d
         panel.grid.minor = element_blank(),
         legend.position = "none")
 
-ggsave(paste0("results/CCLE_",network_choice,"/compare_results_cosine.png"), width = 3000, height = 2000 ,units = "px")
+ggsave(paste0("results/CCLE_",network_choice,"/compare_results_cosine.png"), width = 5000, height = 3000 ,units = "px")
 
 #############################
 # Jaccard Distance
@@ -254,7 +258,7 @@ ggsave(paste0("results/CCLE_",network_choice,"/compare_results_cosine.png"), wid
 
 summarised_jac_sim <- combined_sim %>%
   group_by(algorithm_1,algorithm_2,top_n) %>%
-  summarise(mean_jac_sim = mean(jac_sim)) %>%
+  summarise(mean_jac_sim = mean(jac_sim, na.rm = T)) %>%
   mutate(mean_jac_dist = 1-mean_jac_sim)
 
 #ggplot(summarised_cos_sim, aes(x=top_n,y=mean_cos_dist)) +
@@ -334,10 +338,10 @@ ggplot(jac_similarity_plot %>% mutate(start_label = if_else(n_drivers == min(n_d
   ylab("Jaccard Similarity (Dimensionality Reduced)") +
   xlab("Top N Drivers") +
   geom_label_repel(aes(label=start_label),
-                   nudge_x = -1.5,
+                   nudge_x = -5,
                    na.rm = T) +
   geom_label_repel(aes(label=end_label),
-                   nudge_x = 1.5,
+                   nudge_x = 5,
                    na.rm = T) +
   theme_classic() +
   theme(axis.text.y=element_blank(),
@@ -346,4 +350,4 @@ ggplot(jac_similarity_plot %>% mutate(start_label = if_else(n_drivers == min(n_d
         panel.grid.minor = element_blank(),
         legend.position = "none")
 
-ggsave(paste0("results/CCLE_",network_choice,"/compare_results_jaccard.png"), width = 3000, height = 2000 ,units = "px")
+ggsave(paste0("results/CCLE_",network_choice,"/compare_results_jaccard.png"), width = 5000, height = 3000 ,units = "px")
