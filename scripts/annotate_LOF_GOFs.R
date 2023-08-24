@@ -469,9 +469,9 @@ CancerMine_weight=1
 
 mutation <- mutation %>%
   # Gain of functin or Oncogene
-  mutate(LOF_total_score=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_oncogene*CancerMine_weight,NCG_oncogene*NCG_weight,CGC_oncogene*CGC_weight, na.rm = T)) %>%
+  mutate(GOF_total_score=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_oncogene*CancerMine_weight,NCG_oncogene*NCG_weight,CGC_oncogene*CGC_weight, na.rm = T)) %>%
   # Loss of function or TSG
-  mutate(GOF_total_score=sum(associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_tsg*CancerMine_weight,NCG_tsg*NCG_weight,CGC_tsg*CGC_weight, na.rm = T)) %>%
+  mutate(LOF_total_score=sum(associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_tsg*CancerMine_weight,NCG_tsg*NCG_weight,CGC_tsg*CGC_weight, na.rm = T)) %>%
   mutate(final_prediction=ifelse(GOF_total_score>LOF_total_score, "GOF", "LOF"))
 
 
