@@ -18,7 +18,12 @@ packages <- c(
     "BiocManager",
     "plyr",
     "mixtools",
-    "cowplot"
+    "cowplot",
+    "doParallel",
+    "reshape2",
+    "foreach",
+    "TopKLists"
+    
 )
 
 # Install packages not yet installed
