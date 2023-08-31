@@ -22,7 +22,8 @@ packages <- c(
     "doParallel",
     "reshape2",
     "foreach",
-    "TopKLists"
+    "TopKLists",
+    "truncnorm"
     
 )
 
