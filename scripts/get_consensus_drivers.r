@@ -155,45 +155,80 @@ write_csv(consensus_drivers,paste0("results/CCLE_",network_choice,"/consensus/",
 
 
 
+
+
+
+
+
+
+
+
+#RAmethod <- "BiG"
+
+
 if(RAmethod=="BiG"){
   
-  algs <- sort(unique(aggregated_results$algorithm))
-  
-  # For each cell, get a list of the ranked drivers from each algorithm
   
   start <- Sys.time()
   
-  consensus_drivers <- foreach(cell=unique(aggregated_results$cell_ID), .packages = c("tidyverse","TopKLists","foreach"), .combine = "rbind") %dopar% {
+  consensus_drivers <- foreach(cell=unique(aggregated_results$cell_ID), .packages = c("tidyverse","TopKLists","foreach","truncnorm"), .combine = "rbind", .errorhandling = "pass") %dopar% {
     
-    #message(paste0("Getting consensus drivers for ",cell))
+    lineage <- sample_info %>% filter(cell_ID==cell) %>% pull(lineage)
+
+    message(paste0("Getting consensus drivers for ",cell, "(",which(unique(aggregated_results$cell_ID) == cell),"/",length(unique(aggregated_results$cell_ID)),")\n"))
     
     indiv_ranks <- aggregated_results %>%
       filter(cell_ID==cell) %>%
-      pivot_wider(names_from = "algorithm", values_from = "driver", values_fill = NA) %>%
-      arrange(rank) %>%
-      dplyr::select(-c(cell_ID,lineage,rank)) %>%
-      as.matrix()
+      group_by(algorithm) %>%
+      filter(n()>1) %>%
+      ungroup
+    
+    genes <- data.frame(driver = unique(indiv_ranks$driver))
+    
+    algs <- sort(unique(indiv_ranks$algorithm))
+    
+    if(length(algs)>2){
       
     
+    
+    rank_matrix <- foreach(alg=algs, .packages = "tidyverse", .combine = "cbind") %do% {
+      x <- genes %>% left_join(indiv_ranks %>% filter(algorithm==alg) %>% dplyr::select(driver, rank), by = "driver") %>% dplyr::select(-driver)
+      colnames(x) = alg
+      x
+      
+    }
+    
+    
+    
+    rownames(rank_matrix) = genes$driver
+    
+    
+    
+
     lineage <- sample_info %>% filter(cell_ID==cell) %>% pull(lineage)
     
-    lengths <- colSums(!is.na(indiv_ranks))
+    lengths <- colSums(!is.na(rank_matrix))
     
-    BiG <- BiG_diffuse(r=indiv_ranks,n_T = lengths,n_p1=20000, M=2000, burnin=1000, prior="IG")
+    BiG <- BiG_diffuse(r=rank_matrix,n_T = lengths,n_p1=0, M=200, burnin=100, prior="IG")
     
-    topk %>%
-      mutate(lineage=lineage,cell_ID=cell, rank=row_number()) %>%
-      pivot_longer(cols = c(mean,median,geo.mean,l2norm), names_to = "algorithm", values_to = "driver") %>%
-      mutate(algorithm = paste0("consensus_topklists_",gsub("\\.","",algorithm))) %>%
+    result <- rownames(rank_matrix)[order(BiG,decreasing = T)]
+    
+    data.frame(driver=result) %>%
+      mutate(lineage=lineage,cell_ID=cell, rank=row_number(), algorithm = "consensus_BiG") %>%
       dplyr::select(lineage,cell_ID,driver,rank,algorithm)
+    }else{
+      data.frame(lineage=lineage,cell_ID=cell,driver=NA,rank=NA,algorithm=NA)
+    }
     
   }
   
   end <- Sys.time()
   
-  message("Rank aggregation took ", round(end-start,2), " seconds")
+  message(paste0("Computation took ", time_length(end-start,unit = "seconds"), "seconds"))
+  
+  write_lines(paste0("Time_seconds=",time_length(end-start,unit = "seconds")),file = "log/get_consensus_drivers.log", append = T)
   
 }
 
-
-
+suppressWarnings(dir.create(paste0("results/CCLE_",network_choice,"/consensus")))
+write_csv(consensus_drivers,paste0("results/CCLE_",network_choice,"/consensus/",RAmethod,".csv"))
