@@ -213,6 +213,84 @@ if(network_choice=="STRINGv11"){
   rm(STRING11_aliases,network)
 }
 
+if(network_choice=="STRINGv11_undirected_only"){
+  
+  #########################
+  # STRING Aliases
+  #########################
+  # Setting up object to match STRING IDs with gene names
+  
+  STRING11_aliases <- read_tsv("data/STRINGv11/9606.protein.aliases.v11.0.txt", skip = 1, col_names = c("string_ID", "alias", "source")) %>%
+    filter(alias %in% genes) %>%
+    unique()
+  
+  # Duplicates exist with spurious matches, ordering sources by their frequency to prioritise the sources that most frequently match with the gene list
+  
+  sources <- STRING11_aliases %>%
+    group_by(source) %>% 
+    summarise(count = n()) %>%
+    arrange(desc(count))
+  
+  dups <- STRING11_aliases %>%
+    filter(string_ID %in% STRING11_aliases$string_ID[which(duplicated(STRING11_aliases$string_ID))])
+  
+  # Create empty df
+  selected_ids <- data.frame(matrix(ncol = 3, nrow = 0))
+  colnames(selected_ids) <- c("string_ID", "alias", "source")
+  
+  # loop through duplicated IDs and take the alias source which most highly reflects the gene list
+  for(dup_id in unique(dups$string_ID)){
+    temp <- dups %>%
+      filter(string_ID == dup_id)
+    s <- sources$source[which(sources$source %in% temp$source)[1]]
+    temp <- temp %>%
+      filter(source == s)
+    selected_ids <- rbind(selected_ids, temp)
+  }
+  
+  # Remove duplicated IDs in the original object and then rejoin with only the selected sources
+  STRING11_aliases <- STRING11_aliases %>%
+    filter(!string_ID %in% STRING11_aliases$string_ID[which(duplicated(STRING11_aliases$string_ID))]) %>%
+    rbind(selected_ids)
+  
+  # The presence of duplicates at this point are due to cases (n = approx 200) where a single source has multiple aliases for a single string_ID, at this point these will be filtered out to prevent spurious connections in network which may bias centrality of nodes.
+  STRING11_aliases <- STRING11_aliases %>%
+    filter(!string_ID %in% STRING11_aliases$string_ID[which(duplicated(STRING11_aliases$string_ID))])
+  
+  rm(temp, s, dups, dup_id, sources, selected_ids)
+  
+  #########################
+  # STRING Network
+  #########################
+  
+  network <- read_delim("data/STRINGv11/9606.protein.actions.v11.0.txt") %>%
+    # Taking only edges that are may affect gene expression, directly or indirectly (eg. ptmod, activation, inhibition)
+    dplyr::filter(mode %in% c("inhibition", "activation", "expression", "ptmod")) %>%
+    # Filtering for only high confidence interactions
+    dplyr::filter(score >= network_confidence*1000) %>%
+    # Changing protein names to match with rna data
+    inner_join(STRING11_aliases, by = c("item_id_a"="string_ID")) %>%
+    dplyr::select(-item_id_a) %>% dplyr::rename(protein_1 = alias) %>%
+    inner_join(STRING11_aliases, by = c("item_id_b"="string_ID")) %>%
+    dplyr::select(-item_id_b) %>% dplyr::rename(protein_2 = alias) %>%
+    dplyr::select(protein_1, protein_2, score) %>%
+    group_by(protein_1, protein_2) %>%
+    summarise(score = max(score)) %>%
+    na.omit()
+    
+  
+  # To get an undirected version of this network, take the highest confidence interaction from any reciprocal interactions
+  network_undirected <- network %>%
+    dplyr::filter(protein_1 != protein_2) %>%
+    group_by(edge = paste0(pmin(protein_1, protein_2), ":", pmax(protein_1, protein_2))) %>%
+    summarise(confidence = max(confidence)) %>%
+    ungroup() %>%
+    separate(col = edge, into = c("protein_1", "protein_2"), sep = ":") %>%
+    unique()
+  
+  rm(STRING11_aliases,network)
+}
+
 #########################
 # Mutations
 #########################
@@ -454,18 +532,19 @@ gene_list <- Reduce(intersect, list(
   #CNV data
   rownames(CCLE_copy_number_corrected),
   #STRING network
-  unique(append(network_directed$protein_1, network_directed$protein_2)),
+  #unique(append(network_directed$protein_1, network_directed$protein_2)),
   unique(append(network_undirected$protein_1, network_undirected$protein_2))
 ))
-
-# Need to ensure that BOTH ends of each interaction are in the gene list
-network_directed <- network_directed %>% 
-  filter(protein_1 %in% gene_list & protein_2 %in% gene_list)
+if(exists("network_directed")){
+  # Need to ensure that BOTH ends of each interaction are in the gene list
+  network_directed <- network_directed %>% 
+    filter(protein_1 %in% gene_list & protein_2 %in% gene_list)
+}
 
 network_undirected <- network_undirected %>%
   filter(protein_1 %in% gene_list & protein_2 %in% gene_list)
 
-gene_list <- unique(append(network_directed$protein_1, network_directed$protein_2))
+gene_list <- unique(append(network_undirected$protein_1, network_undirected$protein_2))
 
 # Now filter all other data to only include these genes
 
@@ -619,10 +698,11 @@ analyse_network <- function(network, name){
   
 }
 
-network_summary <- rbind(
-  analyse_network(network_undirected, paste0(network_choice,"_undirected_network")),
-  analyse_network(network_directed, paste0(network_choice,"_directed_network"))
-  )
+network_summary <- analyse_network(network_undirected, paste0(network_choice,"_undirected_network"))
+
+if(exists("network_directed")){
+  network_summary <- rbind(network_summary,analyse_network(network_directed, paste0(network_choice,"_directed_network")))
+}
 
 write_csv(network_summary, paste0(SUMMARY_DIR,"/network_summary.csv"))
 
