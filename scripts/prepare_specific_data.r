@@ -281,6 +281,7 @@ if(network_choice=="STRINGv11_undirected_only"){
   
   # To get an undirected version of this network, take the highest confidence interaction from any reciprocal interactions
   network_undirected <- network %>%
+    dplyr::rename(confidence = score) %>%
     dplyr::filter(protein_1 != protein_2) %>%
     group_by(edge = paste0(pmin(protein_1, protein_2), ":", pmax(protein_1, protein_2))) %>%
     summarise(confidence = max(confidence)) %>%
