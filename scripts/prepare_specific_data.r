@@ -570,7 +570,9 @@ write_csv(CCLE_mutation_matrix %>% rownames_to_column("gene_ID"), paste0(DATA_DI
 write_csv(CCLE_mutations, paste0(DATA_DIR,"/mutations_MAF.csv"))
 write_csv(CCLE_copy_number_corrected %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/cnv.csv"))
 write_csv(CCLE_sample_info, paste0(DATA_DIR,"/sample_info.csv"))
+if(exists("network_directed")){
 write_csv(network_directed, paste0(DATA_DIR,"/network_directed.csv"))
+}
 write_csv(network_undirected, paste0(DATA_DIR,"/network_undirected.csv"))
 write_csv(gold_standards, paste0(DATA_DIR,"/gold_standards.csv"))
 write.table(CCLE_sample_info %>% dplyr::select(lineage) %>% arrange(lineage) %>% unique, 
