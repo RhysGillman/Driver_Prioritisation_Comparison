@@ -292,6 +292,18 @@ if(network_choice=="STRINGv11_undirected_only"){
   rm(STRING11_aliases,network)
 }
 
+
+if(network_choice=="personadrive_network"){
+  network_undirected <- read_tsv("data/personadrive_network.csv") %>%
+    dplyr::rename(protein_1 = genes1, protein_2 = genes2, confidence = Score) %>%
+    dplyr::filter(protein_1 != protein_2) %>%
+    group_by(edge = paste0(pmin(protein_1, protein_2), "DUMMY", pmax(protein_1, protein_2))) %>%
+    summarise(confidence = max(confidence)) %>%
+    ungroup() %>%
+    separate(col = edge, into = c("protein_1", "protein_2"), sep = "DUMMY") %>%
+    unique()
+}
+
 #########################
 # Mutations
 #########################
