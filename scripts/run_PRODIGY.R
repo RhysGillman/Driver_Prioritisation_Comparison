@@ -150,6 +150,10 @@ for(sample in samples){
     res <- res[[1]]
   }
   
+  if(is_empty(res)){
+    res <- c(NA)
+  }
+  
   
   temp_res_df <- data.frame(lineage = cell_type, cell_ID = sample, driver = res, rank = 1:length(res))
   
