@@ -487,11 +487,20 @@ CCLE_copy_number_corrected[CCLE_copy_number_corrected>log2(3)] <- 1
 CCLE_copy_number_corrected <- round(CCLE_copy_number_corrected,0)
 
 
+
+CCLE_segment_copy_number <- data.table::fread("data/CCLE/OmicsCNSegmentsProfile.csv") %>%
+  dplyr::inner_join(CCLE_model_profile, by = "ProfileID") %>%
+  dplyr::select(-c(ProfileID,ProfileType,DepMap_ID)) %>% dplyr::relocate(cell_ID) %>%
+  dplyr::select(-c(NumProbes,Status))
+
+
+
 #########################
 # Gold Standards
 #########################
 
 gold_standards <- read_csv("validation_data/all_gold_standards.csv")
+  
 
 
 #########################
@@ -511,7 +520,8 @@ cell_list <- Reduce(intersect, list(
   #Mutation data
   colnames(CCLE_mutation_matrix),
   #CNV data
-  colnames(CCLE_copy_number_corrected)
+  colnames(CCLE_copy_number_corrected),
+  CCLE_segment_copy_number$cell_ID
 ))
 
 # Additionally, need to have gold standard data for at least some cell lines in each lineage, though don't necessarily need gold standards for all cell lines
@@ -531,6 +541,7 @@ CCLE_tpm <- CCLE_tpm[,cell_list]
 CCLE_mutation_matrix <- CCLE_mutation_matrix[,cell_list]
 CCLE_mutations <- CCLE_mutations %>% filter(cell_ID %in% cell_list)
 CCLE_copy_number_corrected <- CCLE_copy_number_corrected[,cell_list]
+CCLE_segment_copy_number <- CCLE_segment_copy_number %>% filter(cell_ID %in% cell_list)
 CCLE_sample_info <- CCLE_sample_info %>% filter(cell_ID %in% cell_list)
 CCLE_IDs <- CCLE_IDs %>% filter(cell_ID %in% cell_list)
 
@@ -581,6 +592,7 @@ write_csv(CCLE_tpm %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/tpm.csv"
 write_csv(CCLE_mutation_matrix %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/mutations.csv"))
 write_csv(CCLE_mutations, paste0(DATA_DIR,"/mutations_MAF.csv"))
 write_csv(CCLE_copy_number_corrected %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/cnv.csv"))
+write_csv(CCLE_segment_copy_number, paste0(DATA_DIR,"/cnv_segment.csv"))
 write_csv(CCLE_sample_info, paste0(DATA_DIR,"/sample_info.csv"))
 if(exists("network_directed")){
 write_csv(network_directed, paste0(DATA_DIR,"/network_directed.csv"))
