@@ -91,6 +91,8 @@ then
     curl -J -O -L "https://figshare.com/ndownloader/files/38357492"
     # 22Q4 Gene-Level Copy Number
     curl -J -O -L "https://figshare.com/ndownloader/files/38357438"
+    # 22Q4 Segment-Level Copy Number
+    curl -J -O -L "https://figshare.com/ndownloader/files/38357441"
     # 22Q4 Gene Dependency
     curl -J -O -L "https://figshare.com/ndownloader/files/38357387"
     # 22Q4 Gene Effect
