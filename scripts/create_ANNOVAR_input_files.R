@@ -38,7 +38,7 @@ samples <- sample_info$cell_ID %>% sort()
 # Create ANNOVAR Input Files
 #############################
 
-# Annovar format Chromosome ("chr" prefix is optional), Start, End, Reference Allelel, Alternative Allele
+# Annovar format Chromosome ("chr" prefix is optional), Start, End, Reference Allele, Alternative Allele
 # tab separated
 # https://annovar.openbioinformatics.org/en/latest/user-guide/input/
 

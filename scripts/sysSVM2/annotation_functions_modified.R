@@ -118,13 +118,13 @@ map_hotspots = function(
 # Function to annotate small somatic mutations from a VCF
 # gene_aliases_entrez and hotspots can be passed as data frames or file names
 annotate_ssms = function(
-  vcf_fn,                    # File name of somatic VCF to annotate
+  avinput,                    # File name of somatic VCF to annotate
   sample,                    # Name of this sample (NB can't process multi-sample VCFs)
   annovar_dir,               # Directory where ANNOVAR is installed (should contain table_annovar.pl)
-  genome_version = "hg19",   # Version of the human genome to use for ANNOVAR - hg19 or hg38
+  genome_version = "hg38",   # Version of the human genome to use for ANNOVAR - hg19 or hg38
   gene_aliases_entrez,       # gene_aliases_entrez.tsv from the sysSVM2 GitHub repository
   hotspots,                  # tcga_pancancer_hotspots_oncodriveclust.tsv from the sysSVM2 GitHub repository
-  temp_dir = tempdir()       # Directory for temporary files to be created
+  temp_dir      # Directory for temporary files to be created
 ){
   
   # Packages
@@ -134,10 +134,10 @@ annotate_ssms = function(
   
   
   # Run ANNOVAR on VCF
-  annovar_output_fn = tempfile(tmpdir = temp_dir)
+  #annovar_output_fn = tempfile(tmpdir = temp_dir)
   annovar_cmd = paste0(
-    "perl ", annovar_dir, "/table_annovar.pl -vcfinput ", vcf_fn, 
-    " ", annovar_dir, "/humandb/ -buildver ", genome_version, " -out ", annovar_output_fn, " -remove ", 
+    "perl ", annovar_dir, "/table_annovar.pl ", avinput,  
+    " ", annovar_dir, "/humandb/ -buildver ", genome_version, " -out ", temp_dir, " -remove ", 
     "-protocol refGene,dbnsfp35a,dbscsnv11 ", 
     "-operation g,f,f"
     )
@@ -147,8 +147,8 @@ annotate_ssms = function(
   
   
   # Load annotated file and delete temporary files
-  annovar_output = suppressWarnings(read_tsv(paste0(annovar_output_fn, ".", genome_version, "_multianno.txt"), col_types = cols()))
-  cleanup_cmd = paste0("rm ", annovar_output_fn, "*")
+  annovar_output = suppressWarnings(read_tsv(paste0(temp_dir, ".", genome_version, "_multianno.txt"), col_types = cols()))
+  cleanup_cmd = paste0("rm ", temp_dir, "*")
   system(cleanup_cmd)
   
   
