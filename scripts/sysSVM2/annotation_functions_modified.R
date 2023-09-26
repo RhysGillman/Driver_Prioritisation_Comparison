@@ -264,7 +264,7 @@ annotate_cnvs = function(
   ploidy_threshold = 2,    # Threshold for determining gene amplifications: CN >= ploidy_threshold*ploidy
   gene_coords,             # gene_coords_hg19.tsv or gene_coords_hg38.tsv from the sysSVM2 GitHub repository
   bedtools_bin_dir = NULL, # Directory where the bedtools binary executable is located, if not in $PATH
-  temp_dir = tempdir()     # Directory for temporary files to be created
+  temp_dir     # Directory for temporary files to be created
   ){
   
   

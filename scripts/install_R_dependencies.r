@@ -23,7 +23,8 @@ packages <- c(
     "reshape2",
     "foreach",
     "TopKLists",
-    "truncnorm"
+    "truncnorm",
+    "e1071"
     
 )
 
