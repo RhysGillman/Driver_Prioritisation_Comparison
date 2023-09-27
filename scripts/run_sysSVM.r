@@ -4,6 +4,7 @@
 suppressPackageStartupMessages (library(optparse, quietly = T))
 suppressPackageStartupMessages (library(tidyverse, quietly = T))
 suppressPackageStartupMessages (library(biomaRt, quietly = T))
+suppressPackageStartupMessages (library(data.table, quietly = T))
 
 # Handling input arguments
 option_list = list(
@@ -177,6 +178,9 @@ for(s in samples){
   #  canonical_drivers = "scripts/sysSVM2/example_data/canonical_drivers.rds"
   #)
   
+  
+  canonical_drivers <- readRDS("scripts/sysSVM2/example_data/canonical_drivers.rds")
+  canonical_drivers <- canonical_drivers %>% select(entrez, geneType)
   
   # Summarise mutations at the level of sample-gene pairs
   sample_gene_muts = ssms_annotated %>%
