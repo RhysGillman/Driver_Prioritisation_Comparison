@@ -79,6 +79,8 @@ if(!file.exists(paste0("validation_data/CCLE_", network_choice,"/entrez_ids.csv"
   entrez_id_mapping <- read_csv(paste0("validation_data/CCLE_", network_choice,"/entrez_ids.csv"))
 }
 
+detach(package:biomaRt)
+
 
 ################################
 # Prepare Directories
@@ -152,7 +154,7 @@ for(s in samples){
   cnv_number <- fread(paste0("validation_data/CCLE_",network_choice,"/copy_numbers.csv"), select = c("gene_ID",s)) %>%
     dplyr::rename(Copy_number=2) %>%
     mutate(sample = s)
-  cnv <- inner_join(cnv_change, cnv_number, by = c("sample", "gene_ID")) %>%
+  cnv <- inner_join(cnv_change, cnv_number, by = c("sample", "gene_ID"), ) %>%
     inner_join(entrez_id_mapping, by = c("gene_ID"="hgnc_symbol"), multiple="all") %>%
     # Converting CN ratio to copy number
     mutate(Copy_number = ifelse(Copy_number >= 1 & Copy_number < 2, 2,
@@ -213,7 +215,7 @@ for(s in samples){
   
   
   # Output
-  totalTable = totalTable %>% select(-geneType)
+  totalTable = totalTable %>% dplyr::select(-geneType)
   
   
   
