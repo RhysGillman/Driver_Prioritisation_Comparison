@@ -532,8 +532,6 @@ for cell_type in ${cell_types[@]}; do
     fi
     
     
-    done
-    
     ############################################################
     # Run sysSVM2                                              #
     ############################################################
@@ -543,6 +541,10 @@ for cell_type in ${cell_types[@]}; do
         echo -e "\n\n---------------------------"
         echo -e "Running sysSVM2 for $cell_type"
         echo -e "---------------------------\n\n"
+        
+        mkdir -p validation_data/CCLE_$network_choice/ANNOVAR_input/$cell_type
+        mkdir -p results/CCLE_$network_choice/sysSVM2/$cell_type
+        
         
         # Prepare input data
         
