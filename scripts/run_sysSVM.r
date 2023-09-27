@@ -231,7 +231,7 @@ for(s in samples){
   
   predictions <- predict_sysSVM2(
     trained_sysSVM = PANCAN_trained_sysSVM, 
-    molecular_data = molecular_data, 
+    molecular_data = totalTable, 
     systemsLevel_data = "scripts/sysSVM2/example_data/systemsLevel_features_allGenes.tsv"
   )
   
