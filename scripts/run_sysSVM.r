@@ -31,6 +31,7 @@ cell_type <- opt$celltype
 source("scripts/sysSVM2/annotation_functions_modified.R")
 source("scripts/sysSVM2/train_predict_functions.R")
 
+
 #############################
 # ANNOVAR Setup
 #############################
@@ -59,6 +60,24 @@ setwd(current_dir)
 
 sample_info <- read_csv(paste0("validation_data/CCLE_",network_choice,"/sample_info.csv")) %>% filter(lineage==cell_type)
 samples <- sample_info$cell_ID %>% sort()
+
+
+#############################
+# Entrez IDs
+#############################
+
+
+if(!file.exists(paste0("validation_data/CCLE_", network_choice,"/entrez_ids.csv"))){
+  genes <- data.table::fread(paste0("validation_data/CCLE_",network_choice,"/cnv.csv"), select = c("gene_ID")) %>% pull(gene_ID) %>% unique()
+  mart <- biomaRt::useMart("ensembl")
+  mart <- useDataset("hsapiens_gene_ensembl",mart=mart)
+  attr <- listAttributes(mart)
+  entrez_id_mapping <- getBM(attributes=c('hgnc_symbol','entrezgene_id'), mart = mart, filters = 'hgnc_symbol', values = genes)
+  write_csv(entrez_id_mapping, paste0("validation_data/CCLE_", network_choice,"/entrez_ids.csv"))
+}else{
+  entrez_id_mapping <- read_csv(paste0("validation_data/CCLE_", network_choice,"/entrez_ids.csv"))
+}
+
 
 ################################
 # Prepare Directories
@@ -112,24 +131,92 @@ for(s in samples){
   #############################
   # Run Bedtools annotation
   #############################
+  #
+  #cnvs_annotated <- annotate_cnvs(
+  #    cnv_segments=segment_cnv,            # Table with the following columns: sample; chromosome; start; end; and copy_number or segment_mean
+  #    ploidy = NULL,           # Table with the following columns: sample; ploidy. Leave null if unavailable (assumes diploidy)
+  #    ploidy_threshold = 2,    # Threshold for determining gene amplifications: CN >= ploidy_threshold*ploidy
+  #    gene_coords = "scripts/sysSVM2/annotation_reference_files/gene_coords_hg38.tsv",             # gene_coords_hg19.tsv or gene_coords_hg38.tsv from the sysSVM2 GitHub repository
+  #    bedtools_bin_dir = bedtools_dir, # Directory where the bedtools binary executable is located, if not in $PATH
+  #    temp_dir = "tmp/bedtools_tmp"     # Directory for temporary files to be created
+  #)
   
-  cnvs_annotated <- annotate_cnvs(
-      cnv_segments=segment_cnv,            # Table with the following columns: sample; chromosome; start; end; and copy_number or segment_mean
-      ploidy = NULL,           # Table with the following columns: sample; ploidy. Leave null if unavailable (assumes diploidy)
-      ploidy_threshold = 2,    # Threshold for determining gene amplifications: CN >= ploidy_threshold*ploidy
-      gene_coords = "scripts/sysSVM2/annotation_reference_files/gene_coords_hg38.tsv",             # gene_coords_hg19.tsv or gene_coords_hg38.tsv from the sysSVM2 GitHub repository
-      bedtools_bin_dir = bedtools_dir, # Directory where the bedtools binary executable is located, if not in $PATH
-      temp_dir = "tmp/bedtools_tmp"     # Directory for temporary files to be created
-  )
+  # No longer running bedtools due to inconsistencies between algorithms with calculating CNV. Therefore, instead using the already prepared CNV information
+  
+  cnv_change <- fread(paste0("validation_data/CCLE_",network_choice,"/cnv.csv"), select = c("gene_ID",s)) %>%
+    dplyr::rename(cnv_change=2) %>%
+    mutate(sample = s, 
+           CNVGain = cnv_change > 0, 
+           CNVLoss = cnv_change < 0)
+  cnv_number <- fread(paste0("validation_data/CCLE_",network_choice,"/copy_numbers.csv"), select = c("gene_ID",s)) %>%
+    dplyr::rename(Copy_number=2) %>%
+    mutate(sample = s)
+  cnv <- inner_join(cnv_change, cnv_number, by = c("sample", "gene_ID")) %>%
+    inner_join(entrez_id_mapping, by = c("gene_ID"="hgnc_symbol"), multiple="all") %>%
+    # Converting CN ratio to copy number
+    mutate(Copy_number = ifelse(Copy_number >= 1 & Copy_number < 2, 2,
+                                ifelse(Copy_number >= 3 & Copy_number < 4, 3, round(2*Copy_number,0)))) %>%
+    # Remove any duplicate entrez ids by prioritising the version with a cnv change
+    group_by(sample,entrezgene_id) %>%
+    arrange(cnv_change == 0) %>%
+    filter(row_number()==1) %>%
+    ungroup() %>%
+    dplyr::select(sample, entrez=entrezgene_id, Copy_number, CNVGain, CNVLoss)
+
+  
   
   #############################
   # Combine Annotations
   #############################
   
-  molecular_data <- make_totalTable(
-    ssms_annotated, cnvs_annotated, 
-    canonical_drivers = "scripts/sysSVM2/example_data/canonical_drivers.rds"
-  )
+  #molecular_data <- make_totalTable(
+  #  ssms_annotated, cnvs_annotated, 
+  #  canonical_drivers = "scripts/sysSVM2/example_data/canonical_drivers.rds"
+  #)
+  
+  
+  # Summarise mutations at the level of sample-gene pairs
+  sample_gene_muts = ssms_annotated %>%
+    group_by(sample, entrez) %>%
+    summarise(
+      no_ALL_muts = n(), 
+      no_TRUNC_muts = sum(TRUNC_mut), 
+      no_NTDam_muts = sum(NTDam_mut), 
+      no_GOF_muts = sum(GOF_mut)
+    ) %>%
+    ungroup
+
+  
+  # Join
+  totalTable = full_join(
+    sample_gene_muts,
+    cnv,
+    by = c("sample", "entrez")
+  ) %>%
+    replace_na(list(
+      no_ALL_muts = 0, no_TRUNC_muts = 0, no_NTDam_muts = 0, no_GOF_muts = 0,
+      Copy_number = 2, CNVGain = 0, CNVLoss = 0
+    ))
+  
+  
+  # Subset for damaged genes (including GoF in oncogenes and LoF in TSGs)
+  totalTable = totalTable %>% 
+    subset(no_TRUNC_muts + no_NTDam_muts + no_GOF_muts > 0 | Copy_number == 0 | CNVGain == 1) %>%
+    left_join(canonical_drivers, by = "entrez") %>%
+    subset(
+      is.na(geneType) |
+        (geneType == "oncogene" & no_NTDam_muts + no_GOF_muts >= 1 | CNVGain == 1) |
+        (geneType == "tumourSuppressor" & no_TRUNC_muts + no_NTDam_muts >= 1 | Copy_number == 0) |
+        (geneType == "TP53" & no_TRUNC_muts + no_NTDam_muts + no_GOF_muts >= 1 | Copy_number == 0)
+    )
+  
+  
+  # Output
+  totalTable = totalTable %>% select(-geneType)
+  
+  
+  
+  
   
   #############################
   # Run predictions Annotations
