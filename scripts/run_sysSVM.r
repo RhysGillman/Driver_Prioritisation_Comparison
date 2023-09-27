@@ -165,7 +165,11 @@ for(s in samples){
     arrange(cnv_change == 0) %>%
     filter(row_number()==1) %>%
     ungroup() %>%
-    dplyr::select(sample, entrez=entrezgene_id, Copy_number, CNVGain, CNVLoss)
+    dplyr::select(sample, entrez=entrezgene_id, Copy_number, CNVGain, CNVLoss) %>%
+    mutate(Copy_number = as.integer(Copy_number),
+          CNVGain = as.integer(CNVGain),
+          CNVLoss = as.integer(CNVLoss)
+          )
 
   
   

@@ -54,8 +54,8 @@ prepare_data=0
   # Multiple lineages (eg. ("Liver" "Brain" "Skin"))
 
 #cell_types=("Liver" "Skin")
-#cell_types="ALL"
-cell_types="Liver"
+cell_types="ALL"
+#cell_types="Liver"
 
 ########################
 # Gold Standards
