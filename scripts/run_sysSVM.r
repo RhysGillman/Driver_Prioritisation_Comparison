@@ -4,6 +4,7 @@
 suppressPackageStartupMessages (library(optparse, quietly = T))
 suppressPackageStartupMessages (library(tidyverse, quietly = T))
 suppressPackageStartupMessages (library(biomaRt, quietly = T))
+suppressPackageStartupMessages (library(data.table, quietly = T))
 
 # Handling input arguments
 option_list = list(
