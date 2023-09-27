@@ -3,6 +3,7 @@
 # Load Required Packages
 suppressPackageStartupMessages (library(optparse, quietly = T))
 suppressPackageStartupMessages (library(tidyverse, quietly = T))
+suppressPackageStartupMessages (library(biomaRt, quietly = T))
 
 # Handling input arguments
 option_list = list(
