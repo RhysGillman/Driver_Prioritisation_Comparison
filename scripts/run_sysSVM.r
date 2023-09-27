@@ -92,7 +92,7 @@ for(s in samples){
   avinput <- paste0("validation_data/CCLE_",network_choice,"/ANNOVAR_input/",cell_type,"/",s,".avinput")
   
   # Prepare input CNV file for bedtools annotation
-  segment_cnv <- read_csv("validation_data/CCLE_",network_choice,"/cnv_segment.csv", col_names = c("sample","chromosome","start","end","segment_mean"), col_types = "ccnnn") %>%
+  segment_cnv <- read_csv(paste0("validation_data/CCLE_",network_choice,"/cnv_segment.csv"), col_names = c("sample","chromosome","start","end","segment_mean"), col_types = "ccnnn") %>%
     filter(sample==s)
   
   #############################

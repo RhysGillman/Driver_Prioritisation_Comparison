@@ -553,7 +553,7 @@ for cell_type in ${cell_types[@]}; do
         
         # Run
         
-        Rscript --vanilla "scripts/run_sysSVM.r" -n $network_choice -c $cell_type -a $annovar_path -b $bedtools_path
+        Rscript --vanilla "scripts/run_sysSVM.r" -n $network_choice -c $cell_type -a $annovar_path -b $bedtools_path  > $SCRIPT_DIR/log/sysSVM2_${network_choice}_${cell_type}.log &
         
         pid=$!
 

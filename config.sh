@@ -55,7 +55,7 @@ prepare_data=0
 
 #cell_types=("Liver" "Skin")
 #cell_types="ALL"
-cell_types="Skin"
+cell_types="Liver"
 
 ########################
 # Gold Standards
@@ -91,7 +91,7 @@ run_PersonaDrive=0
 run_SCS=0
 run_PNC=0
 run_combined_de_novo=0
-$run_sysSVM2=1
+run_sysSVM2=1
 
 
 ########################
@@ -113,7 +113,7 @@ map_genomic_LOF_GOFs=0
   # 0 - Do not run
   # 1 - Run
   
-run_LOF_GOF_annotations=1
+run_LOF_GOF_annotations=0
 
 
 ########################
@@ -127,20 +127,20 @@ run_LOF_GOF_annotations=1
   # FALSE - do not create link
   # File path to desired link location
 
-use_symbolic_link=true
-link_location="/c/Users/jc428796/Driver_Prioritisation_link"
-#link_location="/home/rgillman/Driver_Prioritisation_link"
+use_symbolic_link=false
+#link_location="/c/Users/jc428796/Driver_Prioritisation_link"
+link_location="/home/rgillman/Driver_Prioritisation_link"
 
 
-windows_mode=true
-
-
-
+windows_mode=false
 
 
 
-gurobi_path="C:\gurobi1000\win64\matlab"
-#gurobi_path="/opt/gurobi1002/linux64/matlab/"  
+
+
+
+#gurobi_path="C:\gurobi1000\win64\matlab"
+gurobi_path="/opt/gurobi1002/linux64/matlab/"  
 
 annovar_path="/home/rhysg/programs/annovar/"
 bedtools_path="/home/rhysg/programs/bedtools/"
