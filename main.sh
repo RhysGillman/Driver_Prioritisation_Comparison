@@ -576,6 +576,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/sysSVM2_${network_choice}_${cell_type}_stats.txt
         echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/sysSVM2_${network_choice}_${cell_type}_stats.txt
         
+        Rscript --vanilla "scripts/format_sysSVM2_results.R" -n $network_choice -c $cell_type
+        
     
     
     fi
