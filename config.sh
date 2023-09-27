@@ -86,11 +86,12 @@ global_alpha=0.1
 
 run_DawnRank=0
 run_PRODIGY=0
-run_OncoImpact=1
+run_OncoImpact=0
 run_PersonaDrive=0
 run_SCS=0
 run_PNC=0
 run_combined_de_novo=0
+$run_sysSVM2=1
 
 
 ########################
@@ -140,3 +141,6 @@ windows_mode=true
 
 gurobi_path="C:\gurobi1000\win64\matlab"
 #gurobi_path="/opt/gurobi1002/linux64/matlab/"  
+
+annovar_path="/home/rhysg/programs/annovar/"
+bedtools_path="/home/rhysg/programs/bedtools/"

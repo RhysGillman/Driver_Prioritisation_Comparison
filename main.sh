@@ -533,6 +533,54 @@ for cell_type in ${cell_types[@]}; do
     
     
     done
+    
+    ############################################################
+    # Run sysSVM2                                              #
+    ############################################################
+    
+    if (($run_sysSVM2==1))
+    then
+        echo -e "\n\n---------------------------"
+        echo -e "Running sysSVM2 for $cell_type"
+        echo -e "---------------------------\n\n"
+        
+        # Prepare input data
+        
+        Rscript --vanilla "scripts/create_ANNOVAR_input_files.R"  -n $network_choice -c $cell_type
+        
+        # Start time
+        start=$(date +%s.%N)
+        
+        # Run
+        
+        Rscript --vanilla "scripts/run_sysSVM.r" -n $network_choice -c $cell_type -a $annovar_path -b $bedtools_path
+        
+        pid=$!
+
+        max_mem=$( memory_usage $pid )
+
+        wait $pid
+        end=$(date +%s.%N)
+        # Measure time difference
+        runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running sysSVM2"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
+        # Save log information to a file
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/sysSVM2_${network_choice}_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/sysSVM2_${network_choice}_${cell_type}_stats.txt
+        
+    
+    
+    fi
+    
+    
+    done
+    
 
 ############################################################
 # LOF GOF Annotations                                      #
