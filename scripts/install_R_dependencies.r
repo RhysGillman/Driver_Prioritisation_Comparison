@@ -41,7 +41,8 @@ packages <- c(
     "graphite",
     "org.Hs.eg.db",
     "topGO",
-    "biomaRt"
+    "biomaRt",
+    "clusterProfiler"
 )
 
 # Install packages not yet installed

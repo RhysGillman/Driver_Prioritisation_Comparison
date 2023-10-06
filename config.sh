@@ -91,7 +91,31 @@ run_PersonaDrive=0
 run_SCS=0
 run_PNC=0
 run_combined_de_novo=0
-run_sysSVM2=1
+run_sysSVM2=0
+run_PhenoDriverR=1
+
+########################
+# badDriver Simulation
+########################
+
+# Indicate whether to run
+# Options --
+  # 0 - Do not run
+  # 1 - Run
+  
+run_badDriver=0
+
+# Use reference set for badDriver simulation
+# Options --
+  # none - Don't use reference set
+  # CGC
+  
+badDriver_ref_set="none"
+
+# Number of simulations to run
+
+  
+badDriver_n_sim=10
 
 
 ########################
@@ -127,12 +151,12 @@ run_LOF_GOF_annotations=0
   # FALSE - do not create link
   # File path to desired link location
 
-use_symbolic_link=false
-#link_location="/c/Users/jc428796/Driver_Prioritisation_link"
-link_location="/home/rgillman/Driver_Prioritisation_link"
+use_symbolic_link=true
+link_location="/c/Users/jc428796/Driver_Prioritisation_link"
+#link_location="/home/rgillman/Driver_Prioritisation_link"
+#link_location="/e/Driver_Prioritisation_link"
 
-
-windows_mode=false
+windows_mode=true
 
 
 

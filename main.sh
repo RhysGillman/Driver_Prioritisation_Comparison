@@ -583,6 +583,68 @@ for cell_type in ${cell_types[@]}; do
     fi
     
     
+    ############################################################
+    # Run PhenoDriverR                                         #
+    ############################################################
+    
+    if (($run_PhenoDriverR==1))
+    then
+        echo -e "\n\n---------------------------"
+        echo -e "Running PhenoDriverR for $cell_type"
+        echo -e "---------------------------\n\n"
+        
+        
+        # Start time
+        start=$(date +%s.%N)
+        
+        # Run
+        
+        Rscript --vanilla "scripts/run_PhenoDriverR.R" -n $network_choice -c $cell_type -t $threads  > "$SCRIPT_DIR/log/PhenoDriverR_${network_choice}_${cell_type}.log" &
+        
+        pid=$!
+
+        max_mem=$( memory_usage $pid )
+
+        wait $pid
+        end=$(date +%s.%N)
+        # Measure time difference
+        runtime=$(echo "$end $start" | awk '{print $1 - $2}')
+        
+        echo -e "\n\n---------------------------"
+        echo -e "Finished running PhenoDriverR"
+        echo -e "Time Taken: $runtime seconds"
+        echo -e "Peak Memory Usage: $max_mem KiB"
+        echo -e "---------------------------\n\n"
+        
+        # Save log information to a file
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > "$SCRIPT_DIR/log/PhenoDriverR_${network_choice}_${cell_type}_stats.txt"
+        echo -e "$runtime\t$max_mem" >> "$SCRIPT_DIR/log/PhenoDriverR_${network_choice}_${cell_type}_stats.txt"
+        
+    
+    fi
+    
+    
+    
+    ############################################################
+    # Run badDriver Simulation                                 #
+    ############################################################
+    
+    if (($run_badDriver==1))
+    then
+        echo -e "\n\n---------------------------"
+        echo -e "Running badDriver Simulation for $cell_type"
+        echo -e "---------------------------\n\n"
+        
+        
+        # Run
+        
+        Rscript --vanilla "scripts/badDriver.R" -n $network_choice -c $cell_type -t $threads -r $badDriver_ref_set -s $badDriver_n_sim
+        
+    
+    
+    fi
+    
+    
     done
     
 
