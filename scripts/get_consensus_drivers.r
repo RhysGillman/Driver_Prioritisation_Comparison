@@ -60,7 +60,7 @@ samples <- sample_info$cell_ID %>% sort()
 # Read In Results
 #############################
 
-algorithms <- "-combined_de_novo_methods"
+algorithms <- c("-combined_de_novo_methods", "-SCS")
 #algorithms <- "ALL"
 
 suppressWarnings(rm(aggregated_results))
