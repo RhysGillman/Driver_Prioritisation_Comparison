@@ -47,7 +47,7 @@ global_alpha <- opt$global_alpha
 source("scripts/runGESD.R")
 
 get_outliers <- function(Matrix, alpha){
-  result <- apply(Matrix, 2, function(x) gesd(x, alpha = alpha, value.zscore = "NO", r = nrow(Matrix)/2))
+  result <- apply(Matrix, 2, function(x) gesd(x, alpha = alpha, value.zscore = "NO", r = nrow(Matrix)/4))
 }
 
 # Note, the above test assumes normally distributed data, whihc is likely not true in this case.
@@ -307,7 +307,7 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
     if(global_alpha != FALSE){
       lin_gene_effect <- lin_gene_effect %>%
         left_join(gene_effect_global_outliers, by = c("cell_ID","gene_ID","gene_effect")) %>%
-        mutate(dependent = ifelse(global_outlier, TRUE, dependent))
+        mutate(dependent = ifelse(global_dependent, TRUE, dependent))
       
     }
     
@@ -440,10 +440,21 @@ summary <- gold_standards %>%
   group_by(lineage,cell_ID) %>%
   summarise(total = n(), drug_sensitive = sum(sensitive, na.rm = T), gene_dependent = sum(dependent, na.rm = T)) %>%
   group_by(lineage) %>%
-  summarise(mean_total_percentile_genes = mean(total)/length(total_genes)*100, 
-            max_total_percentile_genes = max(total)/length(total_genes)*100, 
-            min_total_percentile_genes = min(total)/length(total_genes)*100,
-            mean_gene_dependent_percentile_genes = mean(gene_dependent)/length(total_genes)*100, 
-            mean_drug_sensitive_percentile_genes = mean(drug_sensitive)/length(total_genes)*100)
+  summarise(#mean_total_percentile_genes = mean(total)/length(total_genes)*100, 
+            #max_total_percentile_genes = max(total)/length(total_genes)*100, 
+            #min_total_percentile_genes = min(total)/length(total_genes)*100,
+            #mean_gene_dependent_percentile_genes = mean(gene_dependent)/length(total_genes)*100, 
+            #mean_drug_sensitive_percentile_genes = mean(drug_sensitive)/length(total_genes)*100,
+            mean_total = mean(total),
+            mean_dependent = mean(gene_dependent),
+            mean_sensitive = mean(drug_sensitive)
+  )
 
 write_csv(summary,"validation_data/summary_all_gold_standards.csv")
+
+
+
+
+#test <- read_csv("validation_data/all_gold_standards.csv") %>%
+#  filter(gene_ID == "CCNF") %>%
+#  left_join(gene_effect_global_outliers, by = c("gene_ID", "cell_ID"))
