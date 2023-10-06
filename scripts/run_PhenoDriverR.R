@@ -55,10 +55,16 @@ message("Loading Data")
 
 # Network
 
-## Only keeping edges with known excitatory vs inhibitory information
-original_network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_directed.csv")) %>% select(Source_nodes = protein_1, Target_nodes = protein_2)
-original_STN <- read.delim("scripts/PhenoDriverR/SignalTransductionNet.txt")
-STN <- inner_join(original_STN, original_network, by = c("Source_nodes","Target_nodes"))
+if(network_choice=="own"){
+  STN <- fread("data/own_networks/PhenoDriverR.txt")
+}else{
+
+  ## Only keeping edges with known excitatory vs inhibitory information
+  original_network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_directed.csv")) %>% select(Source_nodes = protein_1, Target_nodes = protein_2)
+  original_STN <- read.delim("scripts/PhenoDriverR/SignalTransductionNet.txt")
+  STN <- inner_join(original_STN, original_network, by = c("Source_nodes","Target_nodes"))
+
+}
 
 # RNA
 

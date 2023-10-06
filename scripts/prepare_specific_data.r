@@ -558,21 +558,33 @@ gene_list <- Reduce(intersect, list(
   #Mutation data
   rownames(CCLE_mutation_matrix),
   #CNV data
-  rownames(CCLE_copy_number_corrected),
-  #STRING network
-  #unique(append(network_directed$protein_1, network_directed$protein_2)),
-  unique(append(network_undirected$protein_1, network_undirected$protein_2))
-))
-if(exists("network_directed")){
-  # Need to ensure that BOTH ends of each interaction are in the gene list
-  network_directed <- network_directed %>% 
+  rownames(CCLE_copy_number_corrected)))
+
+if(network_choice != "own"){
+  
+  
+  gene_list <- Reduce(intersect, list(
+    gene_list,
+    #network
+    #unique(append(network_directed$protein_1, network_directed$protein_2)),
+    unique(append(network_undirected$protein_1, network_undirected$protein_2))
+  ))
+  
+  if(exists("network_directed")){
+    # Need to ensure that BOTH ends of each interaction are in the gene list
+    network_directed <- network_directed %>% 
+      filter(protein_1 %in% gene_list & protein_2 %in% gene_list)
+  }
+  
+  network_undirected <- network_undirected %>%
     filter(protein_1 %in% gene_list & protein_2 %in% gene_list)
+  
+  gene_list <- unique(append(network_undirected$protein_1, network_undirected$protein_2))
+
+  
 }
 
-network_undirected <- network_undirected %>%
-  filter(protein_1 %in% gene_list & protein_2 %in% gene_list)
 
-gene_list <- unique(append(network_undirected$protein_1, network_undirected$protein_2))
 
 # Now filter all other data to only include these genes
 
@@ -600,10 +612,16 @@ write_csv(CCLE_copy_number_corrected %>% rownames_to_column("gene_ID"), paste0(D
 write_csv(CCLE_original_copy_number %>% rownames_to_column("gene_ID"), paste0(DATA_DIR,"/copy_numbers.csv"))
 #write_csv(CCLE_segment_copy_number, paste0(DATA_DIR,"/cnv_segment.csv"))
 write_csv(CCLE_sample_info, paste0(DATA_DIR,"/sample_info.csv"))
-if(exists("network_directed")){
-write_csv(network_directed, paste0(DATA_DIR,"/network_directed.csv"))
+
+if(network_choice != "own"){
+
+  if(exists("network_directed")){
+  write_csv(network_directed, paste0(DATA_DIR,"/network_directed.csv"))
+  }
+  write_csv(network_undirected, paste0(DATA_DIR,"/network_undirected.csv"))
+
 }
-write_csv(network_undirected, paste0(DATA_DIR,"/network_undirected.csv"))
+
 write_csv(gold_standards, paste0(DATA_DIR,"/gold_standards.csv"))
 write.table(CCLE_sample_info %>% dplyr::select(lineage) %>% arrange(lineage) %>% unique, 
             sep="\t", 
@@ -731,15 +749,30 @@ analyse_network <- function(network, name){
   
 }
 
-network_summary <- analyse_network(network_undirected, paste0(network_choice,"_undirected_network"))
 
-if(exists("network_directed")){
-  network_summary <- rbind(network_summary,analyse_network(network_directed, paste0(network_choice,"_directed_network")))
+if(network_choice == "own"){
+  # Analyse all networks
+  network_summary <- rbind(analyse_network(),
+                           analyse_network(),
+                           analyse_network(),
+                           )
+  write_csv(network_summary, paste0(SUMMARY_DIR,"/network_summary.csv"))
+}else{
+  
+  network_summary <- analyse_network(network_undirected, paste0(network_choice,"_undirected_network"))
+  
+  if(exists("network_directed")){
+    network_summary <- rbind(network_summary,analyse_network(network_directed, paste0(network_choice,"_directed_network")))
+  }
+  
+  write_csv(network_summary, paste0(SUMMARY_DIR,"/network_summary.csv"))
+  
+  rm(network_summary)
+  
 }
 
-write_csv(network_summary, paste0(SUMMARY_DIR,"/network_summary.csv"))
 
-rm(network_summary)
+
 
 # Gold Standards Summary
 

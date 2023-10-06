@@ -98,14 +98,17 @@ mutation <- fread(paste0("validation_data/CCLE_",network_choice,"/mutations.csv"
 #ranging from 0.701 to 0.999. Every row in the table is unique, however every single edge is duplicated in reverse 
 #(gene1-gene2 is also gene2-gene1), and thus every single gene is present in both columns of the table.
 
-network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_undirected.csv"))
-colnames(network) <- c("protein_1", "protein_2", "confidence")
-reverse_edges <- network %>% dplyr::select(protein_1 = protein_2, protein_2 = protein_1, confidence)
-network <- rbind(network, reverse_edges) %>% unique()
-rm(reverse_edges)
-network <- network %>% mutate(confidence = confidence/1000)
-colnames(network) <- c("genes1","genes2","Score")
-
+if(network_choice=="own"){
+  network <- fread("data/own_networks/PRODIGY_personadrive.csv", col.names = c("genes1","genes2","Score"))
+}else{
+  network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_undirected.csv"))
+  colnames(network) <- c("protein_1", "protein_2", "confidence")
+  reverse_edges <- network %>% dplyr::select(protein_1 = protein_2, protein_2 = protein_1, confidence)
+  network <- rbind(network, reverse_edges) %>% unique()
+  rm(reverse_edges)
+  network <- network %>% mutate(confidence = confidence/1000)
+  colnames(network) <- c("genes1","genes2","Score")
+}
 
 
 # Formatting

@@ -68,12 +68,17 @@ mutation <-  fread(paste0("validation_data/CCLE_",network_choice,"/mutations.csv
   column_to_rownames("gene_ID") %>% 
   as.matrix()
 
-network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_undirected.csv"))
-colnames(network) <- c("source", "destination", "score")
-network <- network %>%
-  mutate(score = score/1000) %>%
-  as.matrix()
-
+if(network_choice=="own"){
+  
+  network <- fread("data/own_networks/PRODIGY_personadrive.csv")
+  
+}else{
+  network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_undirected.csv"))
+  colnames(network) <- c("source", "destination", "score")
+  network <- network %>%
+    mutate(score = score/1000) %>%
+    as.matrix()
+}
 genes <- Reduce(intersect, list(
   rownames(rna),
   rownames(mutation),

@@ -13,7 +13,7 @@ suppressPackageStartupMessages (library(maxstat, quietly = T))
 option_list = list(
   make_option(c("-n", "--network"), type="character", default="STRINGv11", 
               help="network to use", metavar ="Network"),
-  make_option(c("-c", "--celltype"), type="character", default="Biliary_Tract", 
+  make_option(c("-c", "--celltype"), type="character", default="Liver", 
               help="cell type to analyse", metavar ="Network")
 ); 
 
@@ -56,17 +56,28 @@ mutation <-  fread(paste0("validation_data/CCLE_",network_choice,"/mutations.csv
   column_to_rownames("gene_ID") %>% 
   as.matrix()
 
-# Need to convert 2-column dataframe of interactions into a complete matrix
-network <-  fread(paste0("validation_data/CCLE_",network_choice,"/network_directed.csv")) %>%
-  mutate(confidence = ifelse(confidence>0, 1, 0)) %>%
-  pivot_wider(names_from = 2, values_from = 3) %>%
-  complete(protein_1 = names(.)[-1]) %>%
-  data.table::transpose(make.names = "protein_1", keep.names = "protein_2") %>%
-  complete(protein_2 = names(.)[-1]) %>%
-  data.table::transpose(make.names = "protein_2", keep.names = "protein_1") %>%
-  column_to_rownames("protein_1") %>%
-  mutate_all(~replace_na(., 0)) %>%
-  as.matrix()
+if(network_choice == "own"){
+  
+  
+  load("data/own_networks/dawnrank.rda")
+  network <- originalUnweighted
+  rm(originalUnweighted)
+  
+  
+}else{
+  
+  # Need to convert 2-column dataframe of interactions into a complete matrix
+  network <-  fread(paste0("validation_data/CCLE_",network_choice,"/network_directed.csv")) %>%
+    mutate(confidence = ifelse(confidence>0, 1, 0)) %>%
+    pivot_wider(names_from = 2, values_from = 3) %>%
+    complete(protein_1 = names(.)[-1]) %>%
+    data.table::transpose(make.names = "protein_1", keep.names = "protein_2") %>%
+    complete(protein_2 = names(.)[-1]) %>%
+    data.table::transpose(make.names = "protein_2", keep.names = "protein_1") %>%
+    column_to_rownames("protein_1") %>%
+    mutate_all(~replace_na(., 0)) %>%
+    as.matrix()
+}
 
 genes <- Reduce(intersect, list(
   rownames(rna),
@@ -78,7 +89,11 @@ genes <- Reduce(intersect, list(
 # Make sure that all columns and rows display data in the same order
 rna <- rna[genes, samples]
 mutation <- mutation[genes, samples]
+
+
 network <- network[genes,genes]
+
+
 
 # Testing
 #load("../DawnRank/data/brcaExamplePathway.rda")

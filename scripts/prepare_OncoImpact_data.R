@@ -75,8 +75,13 @@ cnv <- fread(paste0("validation_data/CCLE_",network_choice,"/cnv.csv"), select =
 
 # Network
 
-network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_undirected.csv")) %>%
-  dplyr::select(1,2)
+if(network_choice=="own"){
+  network <- fread("data/own_networks/OncoImpact.txt", select = c("Gene1","Gene2"))
+}else{
+  network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_undirected.csv")) %>%
+    dplyr::select(1,2)
+}
+
 
 
 # Formatting
