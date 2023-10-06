@@ -21,7 +21,9 @@ option_list = list(
   make_option(c("-a", "--algorithms"), type="character", default="ALL", 
               help="algorithms to include in comparison separated by spaces, or 'ALL' (Default), or lead with '-' to exclude", metavar ="Algorithms"),
   make_option(c("-t", "--threads"), type="integer", default=4, 
-              help="Number of threads to use if running in parallel", metavar ="Rank Aggregation Method")
+              help="Number of threads to use if running in parallel", metavar ="Rank Aggregation Method"),
+  make_option(c("-b", "--badDriver"), type="character", default="yes", 
+              help="Include badDriver predictions (yes/no)", metavar ="badDriver")
   
 );
 
@@ -33,6 +35,9 @@ max_SL <- opt$synleth_partners
 network_choice <- opt$network
 algorithms <- opt$algorithms
 threads <- opt$threads
+include_badDriver <- tolower(opt$badDriver)
+
+threads <- 10
 
 if(threads>1){
   #registerDoParallel(cores=threads)
@@ -54,6 +59,7 @@ samples <- sample_info$cell_ID %>% sort()
 
 #algorithms <- "-combined_de_novo_methods"
 algorithms <- "ALL"
+#algorithms <- "sysSVM2"
 
 suppressWarnings(rm(aggregated_results))
 for(alg in list.dirs(paste0("results/CCLE_",network_choice), recursive = F)){
@@ -68,8 +74,8 @@ for(alg in list.dirs(paste0("results/CCLE_",network_choice), recursive = F)){
     }else if(!alg %in% algorithms){
       next
     }else{
-      warning("Invalid input for --algorithms. Cannot mix inclusions and exclusions in one statement.")
-      stop()
+      #warning("Invalid input for --algorithms. Cannot mix inclusions and exclusions in one statement.")
+      #stop()
     }
   }
   for(result_file in list.files(paste0("results/CCLE_", network_choice,"/",alg), pattern = "*.csv")){
@@ -100,6 +106,42 @@ consensus_drivers <- foreach(result=list.files(paste0("results/CCLE_",network_ch
 aggregated_results <- aggregated_results %>% rbind(consensus_drivers)
 
 #aggregated_results <- aggregated_results %>% filter(str_detect(algorithm,"consensus"))
+
+
+
+#############################
+# badDriver Results
+#############################
+
+suppressWarnings(rm(badDriver_results))
+if(include_badDriver == "yes" | include_badDriver == "y"){
+  for(ct in list.dirs(paste0("bad_driver_simulations/CCLE_",network_choice,"/"), recursive = F)){
+    ct <- gsub(".*/","",ct)
+    message("badDriver results for ", ct)
+    
+    for(run in list.files(paste0("bad_driver_simulations/CCLE_",network_choice,"/",ct))) {
+      alg <- gsub("_[0-9]+.csv","",run)
+      run <- str_match(run,"_ref_([0-9]+).csv")[2]
+      
+      indiv_result <- read_csv(paste0("bad_driver_simulations/CCLE_",network_choice,"/",ct,"/", alg, "_", run, ".csv"), col_types = cols()) %>%
+        mutate(algorithm=paste0(alg,"_",run))
+      
+      if(!exists("badDriver_results")){
+        badDriver_results <- indiv_result
+      }else{
+        badDriver_results <- rbind(badDriver_results,indiv_result)
+      }
+      
+    }
+    
+  }
+}
+
+badDriver_results <- badDriver_results %>% filter(rank <= 100)
+
+aggregated_results <- aggregated_results %>% rbind(badDriver_results)
+
+
 
 #############################
 # Read In Gold Standards
@@ -205,7 +247,6 @@ SL_prediction_stats <- foreach(sample=tmp_samples, .combine = "rbind", .packages
       wrong <- predicted[which(!predicted %in% gs)]
       TP <- length(correct)
       FP <- length(wrong)
-      PPV <- TP/(TP+FP)
       precision <- TP/n
       recall <- TP/length(gs)
       F1 <- 2*((precision*recall)/(precision + recall))
@@ -220,10 +261,10 @@ SL_prediction_stats <- foreach(sample=tmp_samples, .combine = "rbind", .packages
                  correct = paste0(correct, collapse = ";"), 
                  TP = TP,
                  FP = FP,
-                 PPV = PPV,
                  precision = precision,
                  recall = recall,
-                 F1 = F1)
+                 F1 = F1,
+                 length_gs = length(gs))
       
       
     }
@@ -240,21 +281,22 @@ write_csv(SL_prediction_stats, paste0("results/CCLE_",network_choice,"/full_resu
   SL_prediction_stats <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_SL_partner_level.csv"))
 }
 
-
-
+#old <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_SL_partner_level.csv"))
+#new <- rbind(SL_prediction_stats, old) %>% unique()
+#write_csv(new, paste0("results/CCLE_",network_choice,"/full_results_SL_partner_level.csv"))
+#SL_prediction_stats <- new
 
 alg_of_interest <- c(
-  #"consensus_top_mean",
-  #"consensus_top_median",
-  "consensus_top_geomean",
-  #"consensus_top_l2norm"
-  
+  "consensus_topklists_geomean",
+  "consensus_BiG",
   "DawnRank",
   "OncoImpact",
   "PNC",
   "PRODIGY",
   "PersonaDrive",
-  "SCS"
+  "SCS",
+  "sysSVM2",
+  "badDriver"
   
   #"CSN_DFVS",
   #"CSN_MDS",
@@ -279,11 +321,16 @@ alg_of_interest <- c(
 
 
 SL_prediction_stats_summarised <- SL_prediction_stats %>%
+  # Combining all badDriver simulations to one mean
+  mutate(algorithm=ifelse(str_detect(algorithm,"bad_sim"), "badDriver", algorithm)) %>%
+  # Only keeping results for samples with > 10 gold standards
+  filter(length_gs >= 10) %>%
   group_by(algorithm,n) %>%
+  # Only keep measurements where more than 10 cells are available to calculate mean
   filter(n()>10) %>%
   summarise(
     mean_TP = mean(TP),
-    mean_PPV = mean(PPV),
+    #mean_PPV = mean(PPV),
     mean_precision = mean(precision),
     mean_recall = mean(recall),
     mean_F1 = median(F1),
@@ -294,7 +341,7 @@ SL_prediction_stats_summarised <- SL_prediction_stats %>%
     #median_F1 = median(F1)
   ) %>%
   pivot_longer(cols = -c(algorithm,n), names_to = "measure", values_to = "value") %>%
-  mutate(measure = factor(measure, levels = c("mean_TP","mean_PPV","mean_recall","mean_precision","mean_F1")))
+  mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1")))
 
 ggplot(SL_prediction_stats_summarised %>% filter(algorithm %in% alg_of_interest) %>% filter(n<=100), aes(x = n, y = value, color = algorithm)) +
   geom_line() +
