@@ -752,11 +752,11 @@ analyse_network <- function(network, name){
 
 if(network_choice == "own"){
   # Analyse all networks
-  network_summary <- rbind(analyse_network(),
-                           analyse_network(),
-                           analyse_network(),
-                           )
-  write_csv(network_summary, paste0(SUMMARY_DIR,"/network_summary.csv"))
+#  network_summary <- rbind(analyse_network(),
+#                           analyse_network(),
+#                           analyse_network(),
+#                           )
+#  write_csv(network_summary, paste0(SUMMARY_DIR,"/network_summary.csv"))
 }else{
   
   network_summary <- analyse_network(network_undirected, paste0(network_choice,"_undirected_network"))
