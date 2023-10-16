@@ -21,7 +21,9 @@ option_list = list(
   make_option(c("-a", "--algorithms"), type="character", default="ALL", 
               help="algorithms to include in comparison separated by spaces, or 'ALL' (Default), or lead with '-' to exclude", metavar ="Algorithms"),
   make_option(c("-t", "--threads"), type="integer", default=4, 
-              help="Number of threads to use if running in parallel", metavar ="Rank Aggregation Method")
+              help="Number of threads to use if running in parallel", metavar ="Rank Aggregation Method"),
+  make_option(c("-c", "--celltype"), type="character", default="all", 
+              help="cell types to analyse, default = 'all'", metavar ="Cell Type")
   
 );
 
@@ -30,11 +32,15 @@ opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
 
 max_SL <- opt$synleth_partners
-#network_choice <- opt$network
+network_choice <- opt$network
 algorithms <- opt$algorithms
 threads <- opt$threads
+cell_type <- opt$celltype
 
-network_choice <- "personadrive_network"
+
+#network_choice <- "own"
+#cell_type <- "Liver"
+threads <- 10
 
 if(threads>1){
   #registerDoParallel(cores=threads)
@@ -48,6 +54,45 @@ if(threads>1){
 
 sample_info <- read_csv(paste0("validation_data/CCLE_",network_choice,"/sample_info.csv"))
 samples <- sample_info$cell_ID %>% sort()
+
+#############################
+# Gene List
+#############################
+
+genes <- fread(paste0("validation_data/CCLE_",network_choice,"/counts.csv"), select = "gene_ID") %>% pull(gene_ID)
+
+
+#############################
+# Altered Genes
+#############################
+
+# Mutations
+
+mutation <- fread(paste0("validation_data/CCLE_",network_choice,"/mutations.csv"), select = c("gene_ID",samples)) %>% 
+  arrange(gene_ID) %>%
+  column_to_rownames("gene_ID")
+
+cnv <- fread(paste0("validation_data/CCLE_",network_choice,"/cnv.csv"), select = c("gene_ID",samples)) %>%
+  column_to_rownames("gene_ID")
+
+mutation <- mutation[sort(rownames(mutation)),sort(colnames(mutation))]
+cnv <- cnv[sort(rownames(cnv)),sort(colnames(cnv))]
+
+
+if(!all(colnames(mutation)==colnames(cnv)) & all(rownames(mutation) == rownames(cnv))){
+  stop("Error: colnames/rownames of cnv and mutation files do not match")
+}
+
+
+altered_genes <- cnv != 0 | mutation != 0
+
+altered_genes <- altered_genes %>%
+  as.data.frame() %>%
+  rownames_to_column("gene_ID") %>%
+  pivot_longer(cols = -gene_ID, names_to = "cell_ID", values_to = "altered") %>%
+  filter(altered) %>%
+  dplyr::select(cell_ID, gene_ID) %>%
+  arrange(cell_ID)
 
 
 #############################
@@ -218,13 +263,15 @@ reference_drivers_all <- rbind(
   CGC_all %>% mutate(source="CGC"),
   NCG_all %>% mutate(source = "NCG"),
   CancerMine_all %>% mutate(source = "CancerMine")
-)
+) %>%
+  filter(gene_ID %in% genes)
 
 reference_drivers_specific <- rbind(
   CGC_specific %>% mutate(source="CGC"),
   NCG_specific %>% mutate(source = "NCG"),
   CancerMine_specific %>% mutate(source = "CancerMine")
-)
+) %>%
+  filter(gene_ID %in% genes)
 
 rm(CGC_all,CGC_specific,NCG_all,NCG_specific,CancerMine_all,CancerMine_specific,all_keywords)
 
@@ -232,6 +279,10 @@ rm(CGC_all,CGC_specific,NCG_all,NCG_specific,CancerMine_all,CancerMine_specific,
 #############################
 # Results
 #############################
+if(cell_type != "all"){
+  aggregated_results <- aggregated_results %>% filter(lineage == cell_type)
+}
+
 
 run_evaluation <- function(ref_set,gold_standard_type){
   
@@ -255,13 +306,22 @@ run_evaluation <- function(ref_set,gold_standard_type){
   
   if(!file.exists(paste0("results/CCLE_",network_choice,"/full_results_", ref_set,"_", gold_standard_type, "_reference_driver_level.csv"))){
     
-    prediction_stats <- foreach(sample=samples, .combine = "rbind", .packages = c("tidyverse","foreach"), .export = c("aggregated_results")) %dopar% {
+    prediction_stats <- foreach(sample=samples, .combine = "rbind", .packages = c("tidyverse","foreach"), .export = c("aggregated_results","altered_genes")) %dopar% {
       
       lin <- aggregated_results %>% filter(cell_ID==sample) %>% pull("lineage") %>% unique()
       
+      alt_genes <- altered_genes %>% filter(cell_ID==sample) %>% pull(gene_ID)
+      
       if(gold_standard_type == "specific"){
-        gs <- gold_standard %>% filter(lineage==lin) %>% pull(gene_ID) %>% unique()
+        gs_specific <- gold_standard %>% filter(lineage==lin) %>% pull(gene_ID) %>% unique()
+        gs_specific <- gs_specific[which(gs_specific %in% alt_genes)]
+      }else{
+        gs_specific <- gs[which(gs %in% alt_genes)]
       }
+      
+      
+      
+      
       
       tmp1 <- aggregated_results %>% filter(cell_ID == sample)
       
@@ -276,17 +336,17 @@ run_evaluation <- function(ref_set,gold_standard_type){
         foreach(n=1:max_drivers, .combine = "rbind", .packages = c("tidyverse"), .export = "run_evaluation") %do% {
           
           predicted <- tmp2 %>% filter(rank <= n) %>% pull(driver)
-          correct <- predicted[which(predicted %in% gs)]
-          wrong <- predicted[which(!predicted %in% gs)]
+          correct <- predicted[which(predicted %in% gs_specific)]
+          wrong <- predicted[which(!predicted %in% gs_specific)]
           TP <- length(correct)
           FP <- length(wrong)
           precision <- TP/n
-          recall <- TP/length(gs)
+          recall <- TP/length(gs_specific)
           F1 <- 2*((precision*recall)/(precision + recall))
           if(is.nan(F1)){
             F1 <- 0
           }
-          n_gs <- length(gs)
+          n_gs <- length(gs_specific)
           
           data.frame(lineage=lin,
                      cell_ID = sample, 
@@ -323,13 +383,28 @@ run_evaluation("all","specific")
 
 
 
+
+
+
+
+
+
 make_evaluation_plot <- function(ref_set,gold_standard_type,algs){
   
   prediction_stats <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_", ref_set,"_", gold_standard_type, "_reference_driver_level.csv"))
   
+  # Dynamic N-Max
+  
+  gs_lengths <- prediction_stats %>% dplyr::select(cell_ID,n_gs) %>% unique() %>% pull(n_gs)
+    
+  ## Calculates 2*median number of sensitive genes for cell lines with >3 sensitive genes
+  N_max <- gs_lengths[which(gs_lengths  > 3 )] %>% median()*2
+  
+  
+  
   prediction_stats_summarised <- prediction_stats %>%
     group_by(algorithm,n) %>%
-    filter(n()>10) %>%
+    filter(n()>5) %>%
     summarise(
       mean_TP = mean(TP),
       mean_precision = mean(precision),
@@ -340,7 +415,7 @@ make_evaluation_plot <- function(ref_set,gold_standard_type,algs){
     mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1")))
   
   
-  ggplot(prediction_stats_summarised %>% filter(algorithm %in% algs) %>% filter(n<=100), aes(x = n, y = value, color = algorithm)) +
+  ggplot(prediction_stats_summarised %>% filter(algorithm %in% algs) %>% filter(n<=N_max), aes(x = n, y = value, color = algorithm)) +
     geom_line() +
     ylab("Average Value") +
     xlab("Number of Predicted Sensitive Genes") +
@@ -357,7 +432,7 @@ alg_of_interest <- c(
   #"consensus_top_median",
   "consensus_topklists_geomean",
   #"consensus_top_l2norm",
-  "consensus_BiG",
+  #"consensus_BiG",
   
   "DawnRank",
   "OncoImpact",
@@ -365,6 +440,8 @@ alg_of_interest <- c(
   "PRODIGY",
   "PersonaDrive",
   "SCS",
+  "sysSVM2",
+  "PhenoDriverR",
   
   "CSN_DFVS",
   "CSN_MDS",
@@ -390,4 +467,42 @@ make_evaluation_plot("all","specific",alg_of_interest)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+test <- read_csv("results/CCLE_own/full_results_CGC_all_reference_driver_level.csv") %>%
+  group_by(algorithm,n) %>%
+  filter(n()>5) %>%
+  summarise(
+    mean_TP = mean(TP),
+    mean_precision = mean(precision),
+    mean_recall = mean(recall),
+    mean_F1 = median(F1),
+  ) %>%
+  pivot_longer(cols = -c(algorithm,n), names_to = "measure", values_to = "value") %>%
+  mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1"))) %>%
+  filter(n==10, measure=="mean_F1")
+
+
+test2 <- read_csv("results/CCLE_own/full_results_all_specific_reference_driver_level.csv") %>%
+  group_by(algorithm,n) %>%
+  filter(n()>5) %>%
+  summarise(
+    mean_TP = mean(TP),
+    mean_precision = mean(precision),
+    mean_recall = mean(recall),
+    mean_F1 = median(F1),
+  ) %>%
+  pivot_longer(cols = -c(algorithm,n), names_to = "measure", values_to = "value") %>%
+  mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1"))) %>%
+  filter(n==10, measure=="mean_F1")
 
