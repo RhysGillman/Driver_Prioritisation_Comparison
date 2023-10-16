@@ -69,8 +69,9 @@ network_choice <- opt$network
 # Genes to consider
 ######################
 
-genes <- fread(paste0("validation_data/CCLE_",network_choice,"/network_undirected.csv"),sep = ",")
-genes <- append(genes$protein_1,genes$protein_2) %>% unique()
+genes <- fread(paste0("validation_data/CCLE_",network_choice,"/counts.csv"),sep = ",", select = c("gene_ID")) %>%
+  pull(gene_ID)
+
 
 
 ######################
