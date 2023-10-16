@@ -70,7 +70,8 @@ mutation <-  fread(paste0("validation_data/CCLE_",network_choice,"/mutations.csv
 
 if(network_choice=="own"){
   
-  network <- fread("data/own_networks/PRODIGY_personadrive.csv")
+  network <- fread("data/own_networks/PRODIGY_personadrive.csv") %>%
+    as.matrix()
   
 }else{
   network <- fread(paste0("validation_data/CCLE_",network_choice,"/network_undirected.csv"))

@@ -391,6 +391,8 @@ for cell_type in ${cell_types[@]}; do
         if (($network_choice=="own"))
         then
           cp -f data/own_networks/SCS.mat tmp/tmp_network.mat
+          cd scripts
+          cd SCS
         else
           cd scripts
           matlab -batch "create_matlab_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
@@ -450,9 +452,18 @@ for cell_type in ${cell_types[@]}; do
         mkdir -p results/CCLE_$network_choice/PNC/$cell_type
         # Prepare input data
         Rscript --vanilla "scripts/prepare_PNC_data.R" -n $network_choice -c $cell_type
-        cd scripts
-        matlab -batch "create_matlab_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
-        cd PNC
+
+
+        if (($network_choice=="own"))
+        then
+          cp -f data/own_networks/PNC.mat tmp/tmp_network.mat
+          cd scripts
+          cd PNC
+        else
+          cd scripts
+          matlab -batch "create_matlab_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
+          cd PNC
+        fi
 
         # Start time
         start=$(date +%s.%N)
@@ -501,9 +512,18 @@ for cell_type in ${cell_types[@]}; do
         mkdir -p results/CCLE_$network_choice/combined_de_novo_methods/$cell_type
         # Prepare input data
         Rscript --vanilla "scripts/prepare_combined_de_novo_methods_data.R" -n $network_choice -c $cell_type
-        cd scripts
-        matlab -batch "create_matlab_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
-        cd combined_de_novo_methods
+
+
+        if (($network_choice=="own"))
+        then
+          cp -f data/own_networks/de_novo_net2.mat tmp/tmp_network.mat
+          cd scripts
+          cd combined_de_novo_methods
+        else
+          cd scripts
+          matlab -batch "create_matlab_network('../validation_data/CCLE_$network_choice/network_directed.csv')"
+          cd combined_de_novo_methods
+        fi
 
         # Start time
         start=$(date +%s.%N)

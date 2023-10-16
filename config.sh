@@ -28,7 +28,9 @@ download_large_data=0
 # The reference network to be used
 # Options --
   # STRINGv11 - STRING v11.0 functional interactions with known directionality
-network_choice="STRINGv11"
+  # own - Uses the original recommended network by each algorithm
+#network_choice="STRINGv11"
+network_choice="own"
 
 # Confidence threshold to be used
 # Options --
@@ -53,9 +55,12 @@ prepare_data=0
   # Single lineage (eg. "Liver")
   # Multiple lineages (eg. ("Liver" "Brain" "Skin"))
 
-#cell_types=("Liver" "Skin")
+#cell_types=("Bone" "Bowel" "Breast" "CNS_Brain" "Cervix" "Esophagus_Stomach" "Head_and_Neck" "Kidney")
 cell_types="ALL"
 #cell_types="Liver"
+#cell_types=("CNS_Brain" "Cervix" "Esophagus_Stomach" "Head_and_Neck" "Kidney" "Lung" "Lymphoid" "Myeloid" "Ovary_Fallopian_Tube" "Pancreas" "Peripheral_Nervous_System" "Pleura" "Skin" "Soft_Tissue" "Thyroid" "Uterus")
+
+#"Biliary_Tract" "Bladder_Urinary_Tract" "Bone" "Bowel" "Breast" "CNS_Brain" "Cervix" "Esophagus_Stomach" "Head_and_Neck" "Kidney" "Liver" "Lung" "Lymphoid" "Myeloid" "Ovary_Fallopian_Tube" "Pancreas" "Peripheral_Nervous_System" "Pleura" "Skin" "Soft_Tissue" "Thyroid" "Uterus" 
 
 ########################
 # Gold Standards
@@ -88,11 +93,11 @@ run_DawnRank=0
 run_PRODIGY=0
 run_OncoImpact=0
 run_PersonaDrive=0
-run_SCS=0
-run_PNC=0
-run_combined_de_novo=0
+run_SCS=1
+run_PNC=1
+run_combined_de_novo=1
 run_sysSVM2=0
-run_PhenoDriverR=1
+run_PhenoDriverR=0
 
 ########################
 # badDriver Simulation
@@ -151,12 +156,12 @@ run_LOF_GOF_annotations=0
   # FALSE - do not create link
   # File path to desired link location
 
-use_symbolic_link=true
+use_symbolic_link=false
 link_location="/c/Users/jc428796/Driver_Prioritisation_link"
 #link_location="/home/rgillman/Driver_Prioritisation_link"
 #link_location="/e/Driver_Prioritisation_link"
 
-windows_mode=true
+windows_mode=false
 
 
 
