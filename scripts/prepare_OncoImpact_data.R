@@ -100,10 +100,10 @@ mutation <- mutation[genes, samples]
 # Create Temporary Files
 #############################
 
-write_tsv(l2fc_rna %>% rownames_to_column("Genes"), "tmp/tmp_OncoImpact_EXP.txt")
-write_tsv(mutation %>% rownames_to_column("Genes"), "tmp/tmp_OncoImpact_SNP.txt")
-write_tsv(network, "tmp/tmp_OncoImpact_network.txt" ,col_names = FALSE)
-write_tsv(cnv %>% rownames_to_column("Genes"), "tmp/tmp_OncoImpact_cnv.txt")
+write_tsv(l2fc_rna %>% rownames_to_column("Genes"), paste0("tmp/tmp_",cell_type,"_OncoImpact_EXP.txt"))
+write_tsv(mutation %>% rownames_to_column("Genes"), paste0("tmp/tmp_",cell_type,"_OncoImpact_SNP.txt"))
+write_tsv(network, paste0("tmp/tmp_",cell_type,"_OncoImpact_network.txt") ,col_names = FALSE)
+write_tsv(cnv %>% rownames_to_column("Genes"), paste0("tmp/tmp_",cell_type,"_OncoImpact_cnv.txt"))
 
 
 
@@ -125,12 +125,12 @@ cfg_lines <- c(
   paste0("outDir=",perl_dir,"/results/CCLE_",network_choice,"/OncoImpact/",cell_type),
   paste0("scriptDir=",perl_dir,"/scripts/OncoImpact"),
   paste0("numThreads=",threads),
-  paste0("cnv=",perl_dir,"/tmp/tmp_OncoImpact_cnv.txt"),
-  paste0("exp=",perl_dir,"/tmp/tmp_OncoImpact_EXP.txt"),
-  paste0("snp=",perl_dir,"/tmp/tmp_OncoImpact_SNP.txt"),
+  paste0("cnv=",perl_dir,"tmp/tmp_",cell_type,"_OncoImpact_cnv.txt"),
+  paste0("exp=",perl_dir,"tmp/tmp_",cell_type,"_OncoImpact_EXP.txt"),
+  paste0("snp=",perl_dir,"tmp/tmp_",cell_type,"_OncoImpact_SNP.txt"),
   "dataType=RNA_SEQ",
   "testMode=0",
-  paste0("network=",perl_dir,"/tmp/tmp_OncoImpact_network.txt")
+  paste0("network=",perl_dir,"/tmp/tmp_",cell_type,"_OncoImpact_network.txt")
   )
 
 #cfg_lines_escaped <- gsub("=","_escaped=", cfg_lines, fixed = T)
@@ -138,4 +138,4 @@ cfg_lines <- c(
 #cfg_lines_escaped <- gsub("(","\\(", cfg_lines_escaped, fixed = T)  
 #cfg_lines_escaped <- gsub(")","\\)", cfg_lines_escaped, fixed = T)
 
-write_lines(cfg_lines, "tmp/tmp_OncoImpact_config.cfg")
+write_lines(cfg_lines, paste0("tmp/tmp_",cell_type,"_OncoImpact_config.cfg"))
