@@ -279,7 +279,7 @@ for cell_type in ${cell_types[@]}; do
         # Start time
         start=$(date +%s.%N)
         ####### Running OncoImpact ########
-        perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_OncoImpact_config.cfg &> log/OncoImpact_$cell_type.log & 
+        perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_${cell_type}_OncoImpact_config.cfg &> log/OncoImpact_${cell_type}_${network_choice}.log & 
 
         # Get the process ID (PID) of the  script
         pid=$!
@@ -298,8 +298,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Save log information to a file
-        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/OncoImpact_${cell_type}_stats.txt
-        echo -e "$runtime\t$max_mem" >> log/OncoImpact_${cell_type}_stats.txt
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/OncoImpact_${cell_type}_${network_choice}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/OncoImpact_${cell_type}_${network_choice}_stats.txt
   
         # Formatting results
         Rscript --vanilla "scripts/format_OncoImpact_results.R" -n $network_choice -c $cell_type
@@ -307,11 +307,11 @@ for cell_type in ${cell_types[@]}; do
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/ANALYSIS"
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/COMPLETE_SAMPLES"
         rm -rf "results/CCLE_$network_choice/OncoImpact/$cell_type/INCOMPLETE_SAMPLES"
-        rm tmp/tmp_OncoImpact_cnv.txt
-        rm tmp/tmp_OncoImpact_config.cfg
-        rm tmp/tmp_OncoImpact_EXP.txt
-        rm tmp/tmp_OncoImpact_network.txt
-        rm tmp/tmp_OncoImpact_SNP.txt
+        rm tmp/tmp_${cell_type}_OncoImpact_cnv.txt
+        rm tmp/tmp_${cell_type}_OncoImpact_config.cfg
+        rm tmp/tmp_${cell_type}_OncoImpact_EXP.txt
+        rm tmp/tmp_${cell_type}_OncoImpact_network.txt
+        rm tmp/tmp_${cell_type}_OncoImpact_SNP.txt
     fi
     
     ############################################################
