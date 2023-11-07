@@ -349,146 +349,152 @@ CCLE_mutation_matrix <- table(CCLE_mutation_matrix) %>% as.data.frame.matrix() %
 #########################
 ## DepMap CCLE data is in the form log2(CN ratio + 1)
 
-CCLE_copy_number <- data.table::fread("data/CCLE/OmicsCNGene.csv")
-
-CCLE_copy_number <- CCLE_copy_number %>%
-  dplyr::rename(DepMap_ID = 1) %>%
-  # Acquiring correct cell_IDs
-  dplyr::inner_join(CCLE_IDs, by = "DepMap_ID") %>%
-  dplyr::select(-DepMap_ID) %>% relocate(cell_ID) %>%
-  filter(!is.na(cell_ID)) %>%
-  data.table::transpose(make.names = "cell_ID", keep.names = "gene_ID") %>%
-  mutate(gene_ID = gsub("\\s.*","", gene_ID)) %>%
-  column_to_rownames("gene_ID") %>%
-  as.data.frame() %>%
-  na.omit()
-
-# Need to correct copy number of X and Y chromosome genes
-
-
-# Using biomaRt to get info on which chromosome each gene is on
-
-ensembl <- useMart("ensembl")
-ensembl <- useDataset("hsapiens_gene_ensembl",mart=ensembl)
-gene_chr_map <- getBM(attributes=c('hgnc_symbol','chromosome_name'), mart = ensembl) %>%
-  filter(chromosome_name %in% c(1:23, "X", "Y")) %>%
-  unique() %>%
-  filter(hgnc_symbol != "", chromosome_name != "") %>%
-  filter(hgnc_symbol %in% rownames(CCLE_copy_number)) %>%
-  # Note, there are no Y-chromosome genes
-  mutate(chromosome_name = ifelse(chromosome_name %in% c("X", "Y"), chromosome_name, "autosome"))
-
-# Checking sex annotation based on X chromosome copy number
-
-check_sex <- CCLE_copy_number %>%
-  rownames_to_column("gene_ID") %>%
-  pivot_longer(cols = -gene_ID, names_to = "cell_ID", values_to = "cn") %>%
-  left_join(CCLE_sample_info %>% dplyr::select(cell_ID, Sex), by = "cell_ID") %>%
-  left_join(gene_chr_map, by = c("gene_ID" = "hgnc_symbol")) %>%
-  filter(chromosome_name == "X") %>%
-  group_by(cell_ID, Sex) %>%
-  summarise(mean_cn = mean(2^(cn)-1))
-
-ggplot(check_sex, aes(x=mean_cn, colour = Sex)) +
-  geom_density() +
-  xlab("Mean X Chromosome Copy Number")
-
-ggsave("plots/QC/CCLE_sex_annotation.png")
-
-check_sex <- check_sex %>%
-  mutate(corrected_sex = ifelse(mean_cn > 0.75, "Female", "Male"))
-
-
-ggplot(check_sex, aes(x=mean_cn, colour = corrected_sex)) +
-  geom_density() +
-  xlab("Mean X Chromosome Copy Number")
-
-ggsave("plots/QC/CCLE_sex_annotation_corrected.png")
-
-# Changing sex annotations in sample_info
-
-CCLE_sample_info <- CCLE_sample_info %>%
-  left_join(check_sex[c("cell_ID","corrected_sex")] %>% unique() %>% na.omit(), by = "cell_ID")
-
-rm(check_sex)
-
-# Check Chromosome Expression
-
-chr_expression <- CCLE_copy_number %>%
-  rownames_to_column("gene_ID") %>%
-  pivot_longer(cols = -gene_ID, names_to = "cell_ID", values_to = "cn") %>%
-  left_join(CCLE_sample_info %>% dplyr::select(cell_ID, corrected_sex), by = "cell_ID") %>%
-  left_join(gene_chr_map, by = c("gene_ID" = "hgnc_symbol")) %>%
-  mutate(chromosome_name = ifelse(is.na(chromosome_name), "not_annotated", chromosome_name)) %>%
-  group_by(cell_ID, corrected_sex, chromosome_name) %>%
-  summarise(mean_cn = mean(2^(cn)-1))
-
-
-ggplot(chr_expression, aes(x=mean_cn, colour = corrected_sex)) +
-  geom_density() +
-  xlab("Mean X Chromosome Copy Number") +
-  facet_wrap(~chromosome_name)
-
-ggsave("plots/QC/CCLE_CNV_not_corrected.png")
-
-# Based on the generated plots, it seems that a correction has not been applied to X chromosome gene copy number based on sex
-# Adding correction for this
-
-x_genes <- gene_chr_map %>% filter(chromosome_name == "X") %>% pull(hgnc_symbol)
-male_cells <- CCLE_sample_info %>% dplyr::select(cell_ID, corrected_sex) %>% filter(corrected_sex == "Male") %>% pull(cell_ID) %>% unique()
-
-cnv_x <- CCLE_copy_number[x_genes,male_cells]
-# Undo the log2(CN ratio + 1)
-cnv_x <- 2^cnv_x -1
-# Correct X chromosome genes by adding 0.5 ratio
-cnv_x <- cnv_x + 0.5
-# Redo normalisation step
-cnv_x <- log2(cnv_x + 1)
-
-CCLE_copy_number_corrected <- CCLE_copy_number
-CCLE_copy_number_corrected[x_genes, male_cells] <- cnv_x
-
-rm(x_genes, male_cells, cnv_x)
-
-# Rechecking
-
-chr_expression <- CCLE_copy_number_corrected %>%
-  rownames_to_column("gene_ID") %>%
-  pivot_longer(cols = -gene_ID, names_to = "cell_ID", values_to = "cn") %>%
-  left_join(CCLE_sample_info %>% dplyr::select(cell_ID, corrected_sex), by = "cell_ID") %>%
-  left_join(gene_chr_map, by = c("gene_ID" = "hgnc_symbol")) %>%
-  mutate(chromosome_name = ifelse(is.na(chromosome_name), "not_annotated", chromosome_name)) %>%
-  group_by(cell_ID, corrected_sex, chromosome_name) %>%
-  summarise(mean_cn = mean(2^(cn)-1))
-
-
-ggplot(chr_expression, aes(x=mean_cn, colour = corrected_sex)) +
-  geom_density() +
-  xlab("Mean X Chromosome Copy Number") +
-  facet_wrap(~chromosome_name)
-
-ggsave("plots/QC/CCLE_CNV_corrected.png")
-
-rm(chr_expression, CCLE_copy_number, gene_chr_map, ensembl)
-
-CCLE_original_copy_number <- 2^CCLE_copy_number_corrected -1
-
-# Copy number is being converted to binary gain or loss values
-## DepMap CCLE data is in the form log2(CN ratio + 1). 
-## ie. a single deletion = log2(1/2 + 1) = 0.585, 
-## homozygous deletion = 0. 
-## Normal copy number = log2(2/2+1) = 1, 
-## extra copy = log2(3/2+1) = 1.32, then 1.585, etc.
-## Using following thresholds:
-### log2(1.5) = 0.585 for deletions
-### log2(3) = 1.585 for amplifications
-
-CCLE_copy_number_corrected[CCLE_copy_number_corrected<log2(1.5)] <- -1
-CCLE_copy_number_corrected[CCLE_copy_number_corrected>log2(1.5) & CCLE_copy_number_corrected<log2(3)] <- 0
-CCLE_copy_number_corrected[CCLE_copy_number_corrected>log2(3)] <- 1
-CCLE_copy_number_corrected <- round(CCLE_copy_number_corrected,0)
-
-
+if(!file.exists("data/CCLE/corrected_cnv.csv") | !file.exists("data/CCLE/corrected_copy_numbers.csv")){
+  CCLE_copy_number <- data.table::fread("data/CCLE/OmicsCNGene.csv")
+  
+  CCLE_copy_number <- CCLE_copy_number %>%
+    dplyr::rename(DepMap_ID = 1) %>%
+    # Acquiring correct cell_IDs
+    dplyr::inner_join(CCLE_IDs, by = "DepMap_ID") %>%
+    dplyr::select(-DepMap_ID) %>% relocate(cell_ID) %>%
+    filter(!is.na(cell_ID)) %>%
+    data.table::transpose(make.names = "cell_ID", keep.names = "gene_ID") %>%
+    mutate(gene_ID = gsub("\\s.*","", gene_ID)) %>%
+    column_to_rownames("gene_ID") %>%
+    as.data.frame() %>%
+    na.omit()
+  
+  # Need to correct copy number of X and Y chromosome genes
+  
+  
+  # Using biomaRt to get info on which chromosome each gene is on
+  
+  ensembl <- useMart("ensembl")
+  ensembl <- useDataset("hsapiens_gene_ensembl",mart=ensembl)
+  gene_chr_map <- getBM(attributes=c('hgnc_symbol','chromosome_name'), mart = ensembl) %>%
+    filter(chromosome_name %in% c(1:23, "X", "Y")) %>%
+    unique() %>%
+    filter(hgnc_symbol != "", chromosome_name != "") %>%
+    filter(hgnc_symbol %in% rownames(CCLE_copy_number)) %>%
+    # Note, there are no Y-chromosome genes
+    mutate(chromosome_name = ifelse(chromosome_name %in% c("X", "Y"), chromosome_name, "autosome"))
+  
+  # Checking sex annotation based on X chromosome copy number
+  
+  check_sex <- CCLE_copy_number %>%
+    rownames_to_column("gene_ID") %>%
+    pivot_longer(cols = -gene_ID, names_to = "cell_ID", values_to = "cn") %>%
+    left_join(CCLE_sample_info %>% dplyr::select(cell_ID, Sex), by = "cell_ID") %>%
+    left_join(gene_chr_map, by = c("gene_ID" = "hgnc_symbol")) %>%
+    filter(chromosome_name == "X") %>%
+    group_by(cell_ID, Sex) %>%
+    summarise(mean_cn = mean(2^(cn)-1))
+  
+  ggplot(check_sex, aes(x=mean_cn, colour = Sex)) +
+    geom_density() +
+    xlab("Mean X Chromosome Copy Number")
+  
+  ggsave("plots/QC/CCLE_sex_annotation.png")
+  
+  check_sex <- check_sex %>%
+    mutate(corrected_sex = ifelse(mean_cn > 0.75, "Female", "Male"))
+  
+  
+  ggplot(check_sex, aes(x=mean_cn, colour = corrected_sex)) +
+    geom_density() +
+    xlab("Mean X Chromosome Copy Number")
+  
+  ggsave("plots/QC/CCLE_sex_annotation_corrected.png")
+  
+  # Changing sex annotations in sample_info
+  
+  CCLE_sample_info <- CCLE_sample_info %>%
+    left_join(check_sex[c("cell_ID","corrected_sex")] %>% unique() %>% na.omit(), by = "cell_ID")
+  
+  rm(check_sex)
+  
+  # Check Chromosome Expression
+  
+  chr_expression <- CCLE_copy_number %>%
+    rownames_to_column("gene_ID") %>%
+    pivot_longer(cols = -gene_ID, names_to = "cell_ID", values_to = "cn") %>%
+    left_join(CCLE_sample_info %>% dplyr::select(cell_ID, corrected_sex), by = "cell_ID") %>%
+    left_join(gene_chr_map, by = c("gene_ID" = "hgnc_symbol")) %>%
+    mutate(chromosome_name = ifelse(is.na(chromosome_name), "not_annotated", chromosome_name)) %>%
+    group_by(cell_ID, corrected_sex, chromosome_name) %>%
+    summarise(mean_cn = mean(2^(cn)-1))
+  
+  
+  ggplot(chr_expression, aes(x=mean_cn, colour = corrected_sex)) +
+    geom_density() +
+    xlab("Mean X Chromosome Copy Number") +
+    facet_wrap(~chromosome_name)
+  
+  ggsave("plots/QC/CCLE_CNV_not_corrected.png")
+  
+  # Based on the generated plots, it seems that a correction has not been applied to X chromosome gene copy number based on sex
+  # Adding correction for this
+  
+  x_genes <- gene_chr_map %>% filter(chromosome_name == "X") %>% pull(hgnc_symbol)
+  male_cells <- CCLE_sample_info %>% dplyr::select(cell_ID, corrected_sex) %>% filter(corrected_sex == "Male") %>% pull(cell_ID) %>% unique()
+  
+  cnv_x <- CCLE_copy_number[x_genes,male_cells]
+  # Undo the log2(CN ratio + 1)
+  cnv_x <- 2^cnv_x -1
+  # Correct X chromosome genes by adding 0.5 ratio
+  cnv_x <- cnv_x + 0.5
+  # Redo normalisation step
+  cnv_x <- log2(cnv_x + 1)
+  
+  CCLE_copy_number_corrected <- CCLE_copy_number
+  CCLE_copy_number_corrected[x_genes, male_cells] <- cnv_x
+  
+  rm(x_genes, male_cells, cnv_x)
+  
+  # Rechecking
+  
+  chr_expression <- CCLE_copy_number_corrected %>%
+    rownames_to_column("gene_ID") %>%
+    pivot_longer(cols = -gene_ID, names_to = "cell_ID", values_to = "cn") %>%
+    left_join(CCLE_sample_info %>% dplyr::select(cell_ID, corrected_sex), by = "cell_ID") %>%
+    left_join(gene_chr_map, by = c("gene_ID" = "hgnc_symbol")) %>%
+    mutate(chromosome_name = ifelse(is.na(chromosome_name), "not_annotated", chromosome_name)) %>%
+    group_by(cell_ID, corrected_sex, chromosome_name) %>%
+    summarise(mean_cn = mean(2^(cn)-1))
+  
+  
+  ggplot(chr_expression, aes(x=mean_cn, colour = corrected_sex)) +
+    geom_density() +
+    xlab("Mean X Chromosome Copy Number") +
+    facet_wrap(~chromosome_name)
+  
+  ggsave("plots/QC/CCLE_CNV_corrected.png")
+  
+  rm(chr_expression, CCLE_copy_number, gene_chr_map, ensembl)
+  
+  CCLE_original_copy_number <- 2^CCLE_copy_number_corrected -1
+  
+  # Copy number is being converted to binary gain or loss values
+  ## DepMap CCLE data is in the form log2(CN ratio + 1). 
+  ## ie. a single deletion = log2(1/2 + 1) = 0.585, 
+  ## homozygous deletion = 0. 
+  ## Normal copy number = log2(2/2+1) = 1, 
+  ## extra copy = log2(3/2+1) = 1.32, then 1.585, etc.
+  ## Using following thresholds:
+  ### log2(1.5) = 0.585 for deletions
+  ### log2(3) = 1.585 for amplifications
+  
+  CCLE_copy_number_corrected[CCLE_copy_number_corrected<log2(1.5)] <- -1
+  CCLE_copy_number_corrected[CCLE_copy_number_corrected>log2(1.5) & CCLE_copy_number_corrected<log2(3)] <- 0
+  CCLE_copy_number_corrected[CCLE_copy_number_corrected>log2(3)] <- 1
+  CCLE_copy_number_corrected <- round(CCLE_copy_number_corrected,0)
+  
+  write_csv(CCLE_copy_number_corrected %>% rownames_to_column("gene_ID"), "data/CCLE/corrected_cnv.csv")
+  write_csv(CCLE_original_copy_number %>% rownames_to_column("gene_ID"), "data/CCLE/corrected_copy_numbers.csv")
+}else{
+  CCLE_copy_number_corrected <- fread("data/CCLE/corrected_cnv.csv") %>% column_to_rownames("gene_ID")
+  CCLE_original_copy_number <- fread("data/CCLE/corrected_copy_numbers.csv") %>% column_to_rownames("gene_ID")
+}
 
 #CCLE_segment_copy_number <- data.table::fread("data/CCLE/OmicsCNSegmentsProfile.csv") %>%
 #  dplyr::inner_join(CCLE_model_profile, by = "ProfileID") %>%
@@ -501,8 +507,8 @@ CCLE_copy_number_corrected <- round(CCLE_copy_number_corrected,0)
 # Gold Standards
 #########################
 
-gold_standards <- read_csv("validation_data/all_gold_standards.csv")
-  
+all_gold_standards <- read_csv("validation_data/all_gold_standards.csv")
+rare_gold_standards <- read_csv("validation_data/rare_gold_standards.csv")
 
 
 #########################
@@ -531,7 +537,7 @@ cell_list <- Reduce(intersect, list(
 # Removed at a later time
 
 CCLE_sample_info <- CCLE_sample_info %>%
-  filter(lineage %in% gold_standards$lineage)
+  filter(lineage %in% all_gold_standards$lineage)
 
 cell_list <- intersect(cell_list, CCLE_sample_info$cell_ID)
 
@@ -594,8 +600,8 @@ CCLE_mutation_matrix <- CCLE_mutation_matrix[gene_list,]
 CCLE_mutations <- CCLE_mutations %>% filter(HugoSymbol %in% gene_list)
 CCLE_copy_number_corrected <- CCLE_copy_number_corrected[gene_list,]
 CCLE_original_copy_number <- CCLE_original_copy_number[gene_list,]
-gold_standards <- gold_standards %>% filter(gene_ID %in% gene_list)
-
+all_gold_standards <- all_gold_standards %>% filter(gene_ID %in% gene_list)
+rare_gold_standards <- rare_gold_standards %>% filter(gene_ID %in% gene_list)
 
 #########################
 # Saving Data
@@ -622,7 +628,8 @@ if(network_choice != "own"){
 
 }
 
-write_csv(gold_standards, paste0(DATA_DIR,"/gold_standards.csv"))
+write_csv(all_gold_standards, paste0(DATA_DIR,"/gold_standards.csv"))
+write_csv(rare_gold_standards, paste0(DATA_DIR,"/rare_gold_standards.csv"))
 write.table(CCLE_sample_info %>% dplyr::select(lineage) %>% arrange(lineage) %>% unique, 
             sep="\t", 
             col.names=FALSE, 
@@ -776,18 +783,33 @@ if(network_choice == "own"){
 
 # Gold Standards Summary
 
-gold_standards_summary <- gold_standards %>%
+gold_standards_summary <- all_gold_standards %>%
   group_by(lineage,cell_ID) %>%
-  summarise(total = n(), drug_sensitive = sum(sensitive, na.rm = T), gene_dependent = sum(dependent, na.rm = T)) %>%
+  summarise(total = n()#, 
+            #drug_sensitive = sum(sensitive, na.rm = T), gene_dependent = sum(dependent, na.rm = T)
+            ) %>%
   group_by(lineage) %>%
-  summarise(mean_total = mean(total),
-            mean_drug_sensitive = mean(drug_sensitive),
-            mean_gene_dependent = mean(gene_dependent)
+  summarise(mean_total = mean(total)#,
+            #mean_drug_sensitive = mean(drug_sensitive),
+            #mean_gene_dependent = mean(gene_dependent)
             )
 
 write_csv(gold_standards_summary, paste0(SUMMARY_DIR,"/gold_standards_summary.csv"))
 
 rm(gold_standards_summary)
+
+rare_gold_standards_summary <- rare_gold_standards %>%
+  group_by(lineage,cell_ID) %>%
+  summarise(total = n()#, 
+            #drug_sensitive = sum(sensitive, na.rm = T), gene_dependent = sum(dependent, na.rm = T)
+  ) %>%
+  group_by(lineage) %>%
+  summarise(mean_total = mean(total)#,
+            #mean_drug_sensitive = mean(drug_sensitive),
+            #mean_gene_dependent = mean(gene_dependent)
+  )
+
+write_csv(rare_gold_standards_summary, paste0(SUMMARY_DIR,"/rare_gold_standards_summary.csv"))
 
 
 
