@@ -29,7 +29,9 @@ option_list = list(
   make_option(c("-m", "--method"), type="character", default="topklists", 
               help="Rank aggregation method to be used", metavar ="Rank Aggregation Method"),
   make_option(c("-t", "--threads"), type="integer", default=4, 
-              help="Number of threads to use if running in parallel", metavar ="Rank Aggregation Method")
+              help="Number of threads to use if running in parallel", metavar ="Rank Aggregation Method"),
+  make_option(c("-c", "--celltype"), type="character", default="all", 
+              help="cell types to analyse, default = 'all'", metavar ="Cell Type")
   
 );
 
@@ -41,6 +43,23 @@ network_choice <- opt$network
 algorithms <- opt$algorithms
 RAmethod <- opt$method
 threads <- opt$threads
+cell_type <- opt$celltype
+
+warning(algorithms)
+
+algorithms <- str_split(algorithms,",") %>% unlist()
+
+
+#network_choice <- "own"
+#cell_type <- "Liver"
+
+#algorithms <- c("CSN_NCUA","PersonaDrive","PRODIGY","OncoImpact","sysSVM2","PhenoDriverR") # best for STRINGv11 ref drivers
+#algorithms <- c("SCS","DawnRank","sysSVM2") # best for STRINGv11 rare SL-partners
+algorithms <- c("CSN_NCUA","OncoImpact","sysSVM2") # best for STRINGv11 SL-partners
+
+
+#algorithms <- c("SCS","DawnRank","OncoImpact","sysSVM2","PNC","PhenoDriverR") # best for "own networks"
+
 
 if(threads>1){
   cl <- makeCluster(threads, outfile = "log/get_consensus_drivers.log")
@@ -60,24 +79,47 @@ samples <- sample_info$cell_ID %>% sort()
 # Read In Results
 #############################
 
-algorithms <- c("-combined_de_novo_methods", "-SCS")
+#algorithms <- c("-combined_de_novo_methods", "-SCS")
 #algorithms <- "ALL"
 
-suppressWarnings(rm(aggregated_results))
+
+de_novo_collection <- c("CSN_DFVS",     "CSN_MDS",     "CSN_MMS",      "CSN_NCUA",
+                        "LIONESS_DFVS", "LIONESS_MDS", "LIONESS_MMS",  "LIONESS_NCUA",
+                        "SPCC_DFVS",    "SPCC_MDS",    "SPCC_MMS",     "SPCC_NCUA",
+                        "SSN_DFVS",     "SSN_MDS",     "SSN_MMS",      "SSN_NCUA")
+
+suppressWarnings(rm(aggregated_results,specific_de_novo))
 for(alg in list.dirs(paste0("results/CCLE_",network_choice), recursive = F)){
   # First, get names of algorithms that have been run
   alg = str_extract(alg,"(?<=/)[^/]*$")
   # Skip consensus results. These will be added separately
   if(alg=="consensus"){next}
+  
+  
   # Check which algorithms are to be included
+  
+  # First check whether all are to be included, if so, then skip ahead to reading in files
   if(algorithms[1]!="ALL"){
+    
+    # Check if all of the names begin with "-" to indicate they are to be excluded
     if(all(substr(algorithms,1,1)=="-")){
+      
+      # If so, then skip any algorithms listed
       if(alg %in% gsub("-","",algorithms)){next}
-    }else if(!alg %in% algorithms){
-      next
-    }else{
+      
+    }else if(any(substr(algorithms,1,1)=="-")){
       warning("Invalid input for --algorithms. Cannot mix inclusions and exclusions in one statement.")
-      stop()
+      stop() 
+      # If the requested algorithm isn't present then skip it
+    }else if(!alg %in% algorithms){
+      
+      # Unless it is a specific de novo method
+      if(any(algorithms %in% de_novo_collection)){
+        specific_de_novo <- algorithms[algorithms %in% de_novo_collection]
+        alg <- "combined_de_novo_methods"
+      }else{
+        next
+      }
     }
   }
   for(result_file in list.files(paste0("results/CCLE_", network_choice,"/",alg), pattern = "*.csv")){
@@ -86,12 +128,20 @@ for(alg in list.dirs(paste0("results/CCLE_",network_choice), recursive = F)){
     if(!"algorithm" %in% colnames(indiv_result)){
       indiv_result <- indiv_result %>% mutate(algorithm = alg)
     }
+    if(alg == "combined_de_novo_methods" & exists("specific_de_novo")){
+      indiv_result <- indiv_result %>% filter(algorithm==specific_de_novo)
+    }
     if(!exists("aggregated_results")){
       aggregated_results <- indiv_result
     }else{
       aggregated_results <- rbind(aggregated_results,indiv_result)
     }
   }
+}
+
+
+if(cell_type != "all"){
+  aggregated_results <- aggregated_results %>% filter(lineage == cell_type)
 }
 
 
@@ -138,7 +188,7 @@ if(RAmethod=="topklists"){
     topk %>%
       mutate(lineage=lineage,cell_ID=cell, rank=row_number()) %>%
       pivot_longer(cols = c(mean,median,geo.mean,l2norm), names_to = "algorithm", values_to = "driver") %>%
-      mutate(algorithm = paste0("consensus_topklists_",gsub("\\.","",algorithm))) %>%
+      mutate(algorithm = paste0("consensus_topklists_",gsub("\\.","",algorithm),"_",paste(algorithms,collapse = "_"))) %>%
       dplyr::select(lineage,cell_ID,driver,rank,algorithm)
     
   }
@@ -147,11 +197,13 @@ if(RAmethod=="topklists"){
   
   message("Rank aggregation took ", round(end-start,2), " seconds")
   
+  
+  suppressWarnings(dir.create(paste0("results/CCLE_",network_choice,"/consensus")))
+  
+  write_csv(consensus_drivers,paste0("results/CCLE_",network_choice,"/consensus/",RAmethod,"_",paste(algorithms,collapse = "_"),".csv"))
 }
 
-suppressWarnings(dir.create(paste0("results/CCLE_",network_choice,"/consensus")))
 
-write_csv(consensus_drivers,paste0("results/CCLE_",network_choice,"/consensus/",RAmethod,".csv"))
 
 
 
@@ -228,7 +280,9 @@ if(RAmethod=="BiG"){
   
   write_lines(paste0("Time_seconds=",time_length(end-start,unit = "seconds")),file = "log/get_consensus_drivers.log", append = T)
   
+  suppressWarnings(dir.create(paste0("results/CCLE_",network_choice,"/consensus")))
+  write_csv(consensus_drivers,paste0("results/CCLE_",network_choice,"/consensus/",RAmethod,".csv"))
+  
 }
 
-suppressWarnings(dir.create(paste0("results/CCLE_",network_choice,"/consensus")))
-write_csv(consensus_drivers,paste0("results/CCLE_",network_choice,"/consensus/",RAmethod,".csv"))
+
