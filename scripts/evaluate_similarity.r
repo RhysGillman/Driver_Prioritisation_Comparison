@@ -6,6 +6,8 @@ suppressPackageStartupMessages (library(tidyverse, quietly = T))
 suppressPackageStartupMessages (library(data.table, quietly = T))
 suppressPackageStartupMessages (library(MASS, quietly = T))
 suppressPackageStartupMessages (library(ggrepel, quietly = T))
+suppressPackageStartupMessages (library(foreach, quietly = T))
+suppressPackageStartupMessages (library(doParallel, quietly = T))
 
 
 # Handling input arguments
@@ -13,7 +15,11 @@ option_list = list(
   make_option(c("-n", "--network"), type="character", default="STRINGv11", 
               help="network to use", metavar ="Network"),
   make_option(c("-a", "--algorithms"), type="character", default="ALL", 
-              help="algorithms to include in comparison separated by spaces, or 'ALL' (Default), or lead with '-' to exclude", metavar ="Algorithms")
+              help="algorithms to include in comparison separated by semicolons (;), or 'ALL' (Default), or lead with '-' to exclude", metavar ="Algorithms"),
+  make_option(c("-t", "--threads"), type="integer", default=4, 
+              help="Number of threads to use if running in parallel", metavar ="Rank Aggregation Method"),
+  make_option(c("-p", "--plot"), type="character", default="-consensus_BiG;-consensus_topklists_mean;-consensus_topklists_median;-consensus_topklists_l2norm", 
+              help="Algorithms to include in the final plot, separated by semicolons (;), or 'ALL' (Default), or lead with '-' to exclude ", metavar ="Rank Aggregation Method")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -21,8 +27,31 @@ opt = parse_args(opt_parser);
 
 network_choice <- opt$network
 algorithms <- opt$algorithms
+threads <- opt$threads
+plot_algorithms <- opt$plot
 
-algorithms <- str_split(algorithms, " ") %>% unlist()
+algorithms <- str_split(algorithms, ";") %>% unlist()
+
+if(toupper(plot_algorithms[1]) != "ALL"){
+  plot_algorithms <- str_split(plot_algorithms, ";") %>% unlist()
+  plot_keep <- plot_algorithms[str_detect(plot_algorithms,"^[^-]")]
+  plot_exclude <- plot_algorithms[str_detect(plot_algorithms,"^-")]
+  plot_exclude <- gsub("^-","",plot_exclude)
+}
+
+
+
+if(length(plot_keep)>0 & length(plot_exclude)>0){
+  warning("Warning: Can't combine included and excluded algorithms for -p option")
+}
+
+threads <- 10
+
+if(threads>1){
+  #registerDoParallel(cores=threads)
+  cl <- makeCluster(threads, outfile = "log/evaluate_similarity.log")
+  registerDoParallel(cl)
+}
 
 
 #############################
@@ -37,8 +66,8 @@ samples <- sample_info$cell_ID %>% sort()
 # Read In Results
 #############################
 
-algorithms <- "-combined_de_novo_methods"
-algorithms <- "ALL"
+#algorithms <- "-combined_de_novo_methods"
+#algorithms <- "ALL"
 
 suppressWarnings(rm(aggregated_results))
 for(alg in list.dirs(paste0("results/CCLE_",network_choice), recursive = F)){
@@ -69,7 +98,7 @@ for(alg in list.dirs(paste0("results/CCLE_",network_choice), recursive = F)){
   }
 }
 
-aggregated_results <- aggregated_results %>% filter(lineage=="Liver")
+#aggregated_results <- aggregated_results %>% filter(lineage=="Liver")
 
 #############################
 # Similarity of Results
@@ -80,7 +109,12 @@ top_ns <- c(1,2,3,4,5,6,7,8,9,10,50,100)
 alg_pairs <- as.list(as.data.frame(combn(unique(aggregated_results$algorithm), 2)))
 
 suppressWarnings(rm(combined_cos_sim))
-for(alg_pair in alg_pairs){
+
+
+if(!file.exists(paste0("results/CCLE_",network_choice,"/full_results_similarity.csv"))){
+  
+
+combined_sim <- foreach(alg_pair=alg_pairs, .combine = "rbind",  .packages = c("tidyverse","foreach"), .export = c("aggregated_results", "top_ns")) %dopar% {
   
   alg1 <- alg_pair[1]
   alg2 <- alg_pair[2]
@@ -93,13 +127,12 @@ for(alg_pair in alg_pairs){
   
   message(paste("Calculating cosine and jaccard similarity for", alg1, "vs", alg2, sep = " "))
   
-  for(cell in comp_cells){
+  
+  foreach(cell=comp_cells, .combine = "rbind", .packages = c("tidyverse","foreach"), .export = c("tmp_results_1","cell","alg1","alg2")) %do% {
     
     tmp_results_2 <- tmp_results_1 %>% filter(cell_ID == cell)
     
-    
-    
-    for(n in top_ns){
+    foreach(n=top_ns, .combine = "rbind", .packages = c("tidyverse","foreach"), .export = c("tmp_results_2","cell","alg1","alg2")) %do% {
       
       # Calculate the cosine similarity of results from each cell
       
@@ -124,30 +157,32 @@ for(alg_pair in alg_pairs){
       jac_sim <- (
         as.numeric(length(intersect(tmp_results_2 %>% filter(rank <= n) %>% filter(algorithm==alg1) %>% pull(driver),
                                     tmp_results_2 %>% filter(rank <= n) %>% filter(algorithm==alg2) %>% pull(driver)))) / 
-        as.numeric(length(union(tmp_results_2 %>% filter(rank <= n) %>% filter(algorithm==alg1) %>% pull(driver),
-                                tmp_results_2 %>% filter(rank <= n) %>% filter(algorithm==alg2) %>% pull(driver))))
+          as.numeric(length(union(tmp_results_2 %>% filter(rank <= n) %>% filter(algorithm==alg1) %>% pull(driver),
+                                  tmp_results_2 %>% filter(rank <= n) %>% filter(algorithm==alg2) %>% pull(driver))))
       )
       
       
       
-      indiv_result <- data.frame(cell_ID = cell, 
-                                 algorithm_1 = alg1, 
-                                 algorithm_2 = alg2,
-                                 top_n = n,
-                                 cos_sim = cos_sim,
-                                 jac_sim = jac_sim
+      data.frame(cell_ID = cell,
+                 algorithm_1 = alg1, 
+                 algorithm_2 = alg2,
+                 top_n = n,
+                 cos_sim = cos_sim,
+                 jac_sim = jac_sim
       )
-      
-      if(!exists("combined_sim")){
-        combined_sim <- indiv_result
-      }else{
-        combined_sim <- rbind(combined_sim, indiv_result)
-        
-      }
-      
     }
   }
+  
+  
 }
+
+write_csv(combined_sim, paste0("results/CCLE_",network_choice,"/full_results_similarity.csv"))
+}else{
+  message("Similarity stats file already exists. Reading in previous results.")
+  message(paste0("To stop this, remove file: ", "results/CCLE_",network_choice,"/full_results_similarity.csv"))
+  combined_sim <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_similarity.csv"))
+}
+
 
 #############################
 # Cosine Similarity
@@ -157,6 +192,16 @@ summarised_cos_sim <- combined_sim %>%
   group_by(algorithm_1,algorithm_2,top_n) %>%
   summarise(mean_cos_sim = mean(cos_sim, na.rm = T)) %>%
   mutate(mean_cos_dist = 1-mean_cos_sim)
+
+if(toupper(plot_algorithms[1]) != "ALL"){
+  if(length(plot_keep)>0){
+    summarised_cos_sim <- summarised_cos_sim %>% filter(algorithm_1 %in% plot_keep & algorithm_2 %in% plot_keep)
+  }else if(length(plot_exclude)>0){
+    summarised_cos_sim <- summarised_cos_sim %>% filter(!algorithm_1 %in% plot_exclude & !algorithm_2 %in% plot_exclude)
+  }
+    
+  
+}
 
 #ggplot(summarised_cos_sim, aes(x=top_n,y=mean_cos_dist)) +
 #  geom_point()
@@ -170,11 +215,12 @@ for(n in top_ns){
   dist_matrix <- dist_matrix %>%
     # Need to duplicate values to make full symmetric matrix
     rbind(dist_matrix %>% dplyr::select(algorithm_1 = algorithm_2, algorithm_2 = algorithm_1, mean_cos_dist)) %>%
+    unique() %>%
     # Make distance matrix
     pivot_wider(names_from = algorithm_2, values_from = mean_cos_dist, values_fill = 0) %>%
     column_to_rownames("algorithm_1") %>%
     as.matrix()
-  dist_matrix <- dist_matrix[sort(unique(aggregated_results$algorithm)),sort(unique(aggregated_results$algorithm))]
+  dist_matrix <- dist_matrix[sort(unique(append(summarised_cos_sim$algorithm_1,summarised_cos_sim$algorithm_2))),sort(unique(append(summarised_cos_sim$algorithm_1,summarised_cos_sim$algorithm_2)))]
   
   mds <- isoMDS(dist_matrix, k = 1, tol = 0.1, p = 2)
   
@@ -224,31 +270,43 @@ for(n in top_ns){
   
 }
 
-#cos_similarity_plot <- cos_similarity_plot %>%
-#  mutate(log_pos = log10(pos + abs(min(cos_similarity_plot$pos))+1))
+alg_colours <- read_csv("data/algorithm_colours.csv") %>% deframe()
+
+cos_similarity_plot <- cos_similarity_plot %>%
+  mutate(algorithm=factor(algorithm, levels = names(alg_colours)))
+
 
 
 
 ggplot(cos_similarity_plot %>% mutate(start_label = if_else(n_drivers == min(n_drivers), as.character(algorithm), NA_character_),
                                   end_label = if_else(n_drivers == max(n_drivers), as.character(algorithm), NA_character_)), 
        aes(x=as.factor(n_drivers),
-           y=pos, colour=algorithm, group=algorithm)) +
-  geom_point() +
+           y=pos, 
+           colour=algorithm, 
+           group=algorithm
+           )) +
+  #geom_point() +
   geom_line() +
+  scale_colour_manual(values = alg_colours) +
   ylab("Cosine Similarity (Dimensionality Reduced)") +
   xlab("Top N Drivers") +
   geom_label_repel(aes(label=start_label),
                    nudge_x = -5,
-                   na.rm = T) +
-  geom_label_repel(aes(label=end_label),
-                   nudge_x = 5,
-                   na.rm = T) +
+                   na.rm = T, direction = "y", arrow = arrow(type = "open", angle = 10, length = unit(0.3,"cm")),
+                   max.overlaps = 100) +
+  #geom_label_repel(aes(label=end_label),
+  #                 nudge_x = 5,
+  #                 na.rm = T) +
   theme_classic() +
   theme(axis.text.y=element_blank(),
         axis.ticks.y=element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
-        legend.position = "none")
+        #legend.position = "none",
+        #panel.background = element_rect(fill="#1B2631")
+        ) +
+  guides(colour="none") +
+  geom_vline(xintercept = 1, colour = "black", linetype = "dashed")
 
 ggsave(paste0("results/CCLE_",network_choice,"/compare_results_cosine.png"), width = 5000, height = 3000 ,units = "px")
 
