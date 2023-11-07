@@ -1,6 +1,5 @@
 # evaluate_reference_drivers.r
 
-# evaluate_SL_partners.r
 
 # Load Required Packages
 suppressPackageStartupMessages (library(optparse, quietly = T))
@@ -21,9 +20,11 @@ option_list = list(
   make_option(c("-a", "--algorithms"), type="character", default="ALL", 
               help="algorithms to include in comparison separated by spaces, or 'ALL' (Default), or lead with '-' to exclude", metavar ="Algorithms"),
   make_option(c("-t", "--threads"), type="integer", default=4, 
-              help="Number of threads to use if running in parallel", metavar ="Rank Aggregation Method"),
+              help="Number of threads to use if running in parallel", metavar ="Threads"),
   make_option(c("-c", "--celltype"), type="character", default="all", 
-              help="cell types to analyse, default = 'all'", metavar ="Cell Type")
+              help="cell types to analyse, default = 'all'", metavar ="Cell Type"),
+  make_option(c("-b", "--badDriver"), type="character", default="yes", 
+              help="Include badDriver predictions (yes/no)", metavar ="badDriver")
   
 );
 
@@ -36,8 +37,15 @@ network_choice <- opt$network
 algorithms <- opt$algorithms
 threads <- opt$threads
 cell_type <- opt$celltype
+include_badDriver <- tolower(opt$badDriver)
 
 
+# A minimum number of gold standards allowed to each cell. If less are available, the cell is removed from calculations
+min_gs <- 10
+
+
+
+#include_badDriver <- "no"
 #network_choice <- "own"
 #cell_type <- "Liver"
 threads <- 10
@@ -144,6 +152,41 @@ consensus_drivers <- foreach(result=list.files(paste0("results/CCLE_",network_ch
 }
 
 aggregated_results <- aggregated_results %>% rbind(consensus_drivers)
+
+
+#############################
+# badDriver Results
+#############################
+
+suppressWarnings(rm(badDriver_results))
+if(include_badDriver == "yes" | include_badDriver == "y"){
+  for(ct in list.dirs(paste0("bad_driver_simulations/CCLE_",network_choice,"/"), recursive = F)){
+    ct <- gsub(".*/","",ct)
+    message("badDriver results for ", ct)
+    
+    for(run in list.files(paste0("bad_driver_simulations/CCLE_",network_choice,"/",ct))) {
+      alg <- gsub("_[0-9]+.csv","",run)
+      run <- str_match(run,"_ref_([0-9]+).csv")[2]
+      
+      indiv_result <- read_csv(paste0("bad_driver_simulations/CCLE_",network_choice,"/",ct,"/", alg, "_", run, ".csv"), col_types = cols()) %>%
+        mutate(algorithm=paste0(alg,"_",run))
+      
+      if(!exists("badDriver_results")){
+        badDriver_results <- indiv_result
+      }else{
+        badDriver_results <- rbind(badDriver_results,indiv_result)
+      }
+      
+    }
+    
+  }
+  
+  badDriver_results <- badDriver_results %>% filter(rank <= 100)
+  
+  aggregated_results <- aggregated_results %>% rbind(badDriver_results)
+}
+
+
 
 
 #############################
@@ -306,7 +349,7 @@ run_evaluation <- function(ref_set,gold_standard_type){
   
   if(!file.exists(paste0("results/CCLE_",network_choice,"/full_results_", ref_set,"_", gold_standard_type, "_reference_driver_level.csv"))){
     
-    prediction_stats <- foreach(sample=samples, .combine = "rbind", .packages = c("tidyverse","foreach"), .export = c("aggregated_results","altered_genes")) %dopar% {
+    prediction_stats <- foreach(sample=samples, .combine = "rbind", .packages = c("tidyverse","foreach"), .export = c("aggregated_results","altered_genes","min_gs")) %dopar% {
       
       lin <- aggregated_results %>% filter(cell_ID==sample) %>% pull("lineage") %>% unique()
       
@@ -319,7 +362,7 @@ run_evaluation <- function(ref_set,gold_standard_type){
         gs_specific <- gs[which(gs %in% alt_genes)]
       }
       
-      
+      if(length(gs_specific)<min_gs){return(NULL)}else{
       
       
       
@@ -366,20 +409,23 @@ run_evaluation <- function(ref_set,gold_standard_type){
         
         
       }
+      }
       
     }
     write_csv(prediction_stats, paste0("results/CCLE_",network_choice,"/full_results_", ref_set,"_", gold_standard_type, "_reference_driver_level.csv"))
+    return(prediction_stats)
   }else{
     message("SL Prediction stats file already exists. Reading in previous results.")
     message(paste0("To stop this, remove file: ", "results/CCLE_",network_choice,"/full_results_", ref_set,"_", gold_standard_type, "_reference_driver_level.csv"))
     prediction_stats <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_", ref_set,"_", gold_standard_type, "_reference_driver_level.csv"))
+    return(prediction_stats)
   }
   
 }
 
 #run_evaluation("CGC","specific")
-run_evaluation("CGC","all")
-run_evaluation("all","specific")
+prediction_stats <- run_evaluation("CGC","all")
+prediction_stats <- run_evaluation("all","specific")
 
 
 
@@ -389,20 +435,31 @@ run_evaluation("all","specific")
 
 
 
-make_evaluation_plot <- function(ref_set,gold_standard_type,algs){
+make_evaluation_plot <- function(ref_set,gold_standard_type,algs,max_predictions="median gold standards"){
   
   prediction_stats <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_", ref_set,"_", gold_standard_type, "_reference_driver_level.csv"))
   
   # Dynamic N-Max
   
   gs_lengths <- prediction_stats %>% dplyr::select(cell_ID,n_gs) %>% unique() %>% pull(n_gs)
-    
-  ## Calculates 2*median number of sensitive genes for cell lines with >3 sensitive genes
-  N_max <- gs_lengths[which(gs_lengths  > 3 )] %>% median()*2
+  
+  
+  if(max_predictions=="median gold standards"){
+    ## Calculates 2*median number of sensitive genes for cell lines with >3 sensitive genes
+    N_max <- gs_lengths[which(gs_lengths  > 3 )] %>% median()*2
+  } else {
+    N_max <- max_predictions
+  }
+
+  
+  alg_colours <- read_csv("data/algorithm_colours.csv") %>% deframe()
+  
   
   
   
   prediction_stats_summarised <- prediction_stats %>%
+    # Combining all badDriver simulations to one mean
+    mutate(algorithm=ifelse(str_detect(algorithm,"bad_sim"), "badDriver", algorithm)) %>%
     group_by(algorithm,n) %>%
     filter(n()>5) %>%
     summarise(
@@ -410,29 +467,42 @@ make_evaluation_plot <- function(ref_set,gold_standard_type,algs){
       mean_precision = mean(precision),
       mean_recall = mean(recall),
       mean_F1 = median(F1),
+      sample_size = n()
     ) %>%
-    pivot_longer(cols = -c(algorithm,n), names_to = "measure", values_to = "value") %>%
-    mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1")))
+    pivot_longer(cols = -c(algorithm,n,sample_size), names_to = "measure", values_to = "value") %>%
+    mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1")),
+           algorithm = factor(algorithm, levels = names(alg_colours)),
+           sample_size = ifelse(algorithm=="badDriver",length(samples),sample_size))
   
   
-  ggplot(prediction_stats_summarised %>% filter(algorithm %in% algs) %>% filter(n<=N_max), aes(x = n, y = value, color = algorithm)) +
-    geom_line() +
+  ggplot(mapping = aes(x = n, y = value, color = algorithm)) +
+    geom_line(data=prediction_stats_summarised %>% filter(algorithm %in% algs) %>% filter(n<=N_max) %>% filter(!str_detect(algorithm, "consensus|badDriver")), mapping=aes(alpha = sample_size)) +
+    geom_line(data=prediction_stats_summarised %>% filter(algorithm %in% algs) %>% filter(n<=N_max) %>% filter(str_detect(algorithm, "consensus|badDriver")), linetype = "dashed") +
+    scale_color_manual(breaks = names(alg_colours),values = alg_colours) +
     ylab("Average Value") +
-    xlab("Number of Predicted Sensitive Genes") +
+    xlab("Number of Predicted Driver Genes") +
     theme_light() +
+    guides(colour=guide_legend(title="Algorithm (Colour)"),alpha=guide_legend(title = "Sample Size Remaining (Opacity)")) +
+    #scale_linetype_manual(
+    #  breaks = names(alg_colours),
+    #  values = ifelse(str_detect(names(alg_colours),"consensus|badDriver"),"dashed","solid")
+    #) +
     facet_wrap(~measure, nrow = 1, scales = "free")
   
-  ggsave(paste0("results/CCLE_",network_choice,"/",ref_set,"_",gold_standard_type,"_reference_driver_level_stats.png"),width = 50, height = 20, units = "cm", dpi = 300)
+  ggsave(paste0("results/CCLE_",network_choice,"/",ref_set,"_",gold_standard_type,"_reference_driver_level_stats_max_",max_predictions,".png"),width = 50, height = 20, units = "cm", dpi = 300)
   
 }
 
 
 alg_of_interest <- c(
-  #"consensus_top_mean",
-  #"consensus_top_median",
-  "consensus_topklists_geomean",
-  #"consensus_top_l2norm",
-  #"consensus_BiG",
+
+  "consensus_topklists_geomean_CSN_NCUA_PersonaDrive_PRODIGY_OncoImpact_sysSVM2_PhenoDriverR",
+  #"consensus_topklists_median_SCS_DawnRank_sysSVM2",
+  #"consensus_topklists_geomean_CSN_NCUA_OncoImpact_sysSVM2",
+  "consensus_topklists_geomean_ALL",
+  
+  
+
   
   "DawnRank",
   "OncoImpact",
@@ -443,33 +513,33 @@ alg_of_interest <- c(
   "sysSVM2",
   "PhenoDriverR",
   
-  "CSN_DFVS",
-  "CSN_MDS",
-  "CSN_MMS",
+  #"CSN_DFVS",
+  #"CSN_MDS",
+  #"CSN_MMS",
   "CSN_NCUA",
-  "LIONESS_DFVS",
-  "LIONESS_MDS",
-  "LIONESS_MMS",
-  "LIONESS_NCUA",
-  "SPCC_DFVS",
-  "SPCC_MDS",
-  "SPCC_MMS",
-  "SPCC_NCUA",
-  "SSN_DFVS",
-  "SSN_MDS",
-  "SSN_MMS",
-  "SSN_NCUA"
+  #"LIONESS_DFVS",
+  #"LIONESS_MDS",
+  #"LIONESS_MMS",
+  #"LIONESS_NCUA",
+  #"SPCC_DFVS",
+  #"SPCC_MDS",
+  #"SPCC_MMS",
+  #"SPCC_NCUA",
+  #"SSN_DFVS",
+  #"SSN_MDS",
+  #"SSN_MMS",
+  #"SSN_NCUA",
+  
+  "badDriver"
 )
 
-make_evaluation_plot("CGC","all",alg_of_interest)
+#make_evaluation_plot("CGC","all",alg_of_interest,"median gold standards")
+make_evaluation_plot("CGC","all",alg_of_interest,10)
+make_evaluation_plot("CGC","all",alg_of_interest,50)
+make_evaluation_plot("CGC","all",alg_of_interest,100)
+#make_evaluation_plot("CGC","all",alg_of_interest,10)
 
-make_evaluation_plot("all","specific",alg_of_interest)
-
-
-
-
-
-
+#make_evaluation_plot("all","specific",alg_of_interest)
 
 
 
@@ -479,30 +549,50 @@ make_evaluation_plot("all","specific",alg_of_interest)
 
 
 
-test <- read_csv("results/CCLE_own/full_results_CGC_all_reference_driver_level.csv") %>%
-  group_by(algorithm,n) %>%
-  filter(n()>5) %>%
-  summarise(
-    mean_TP = mean(TP),
-    mean_precision = mean(precision),
-    mean_recall = mean(recall),
-    mean_F1 = median(F1),
-  ) %>%
-  pivot_longer(cols = -c(algorithm,n), names_to = "measure", values_to = "value") %>%
-  mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1"))) %>%
-  filter(n==10, measure=="mean_F1")
 
 
-test2 <- read_csv("results/CCLE_own/full_results_all_specific_reference_driver_level.csv") %>%
-  group_by(algorithm,n) %>%
-  filter(n()>5) %>%
-  summarise(
-    mean_TP = mean(TP),
-    mean_precision = mean(precision),
-    mean_recall = mean(recall),
-    mean_F1 = median(F1),
-  ) %>%
-  pivot_longer(cols = -c(algorithm,n), names_to = "measure", values_to = "value") %>%
-  mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1"))) %>%
-  filter(n==10, measure=="mean_F1")
 
+
+
+
+#test <- read_csv("results/CCLE_STRINGv11/full_results_CGC_all_reference_driver_level.csv") %>%
+#  group_by(algorithm,n) %>%
+#  filter(n()>5) %>%
+#  summarise(
+#    mean_TP = mean(TP),
+#    mean_precision = mean(precision),
+#    mean_recall = mean(recall),
+#    mean_F1 = median(F1),
+#  ) %>%
+#  pivot_longer(cols = -c(algorithm,n), names_to = "measure", values_to = "value") %>%
+#  mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1"))) %>%
+#  filter(n==20, measure=="mean_F1")
+
+#which((altered_genes %>% filter(cell_ID=="HS611T") %>% pull(gene_ID)) %in% (reference_drivers_all %>% filter(source=="CGC") %>% pull(gene_ID)))
+
+
+#test2 <- read_csv("results/CCLE_own/full_results_all_specific_reference_driver_level.csv") %>%
+#  group_by(algorithm,n) %>%
+#  filter(n()>5) %>%
+#  summarise(
+#    mean_TP = mean(TP),
+#    mean_precision = mean(precision),
+#    mean_recall = mean(recall),
+#    mean_F1 = median(F1),
+#  ) %>%
+#  pivot_longer(cols = -c(algorithm,n), names_to = "measure", values_to = "value") %>%
+#  mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1"))) %>%
+#  filter(n==10, measure=="mean_F1")
+
+
+#ggplot(prediction_stats_summarised %>% filter(algorithm %in% algs) %>% filter(n<=N_max), aes(x = n, y = value, color = algorithm, linetype = algorithm, alpha = sample_size)) +
+#  geom_line() +
+#  scale_color_manual(breaks = names(alg_colours),values = alg_colours) +
+#  ylab("Average Value") +
+#  xlab("Number of Predicted Driver Genes") +
+#  theme_light() +
+#  scale_linetype_manual(
+#    breaks = names(alg_colours),
+#    values = ifelse(str_detect(names(alg_colours),"consensus|badDriver"),"dashed","solid")
+#  ) +
+#  facet_wrap(~measure, nrow = 1, scales = "free")
