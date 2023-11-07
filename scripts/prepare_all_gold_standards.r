@@ -16,7 +16,9 @@ option_list = list(
   make_option(c("-l", "--local_alpha"), type="double", default=0.1, 
               help="Local (within a cell type) alpha significance threshold to be used (default = 0.1)", metavar ="Local Alpha"),
   make_option(c("-g", "--global_alpha"), type="double", default=0.1, 
-              help="Global (including all cell types) alpha significance threshold to be used (default = 0.1)", metavar ="Global Alpha")
+              help="Global (including all cell types) alpha significance threshold to be used (default = 0.1)", metavar ="Global Alpha"),
+  make_option(c("-m", "--method"), type="character", default="picklesv3", 
+              help="Method of identifying gold standards", metavar ="Method")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -24,6 +26,7 @@ opt = parse_args(opt_parser);
 
 local_alpha <- opt$local_alpha
 global_alpha <- opt$global_alpha
+method <- opt$method
 
 #############################
 # Functions
@@ -33,13 +36,13 @@ global_alpha <- opt$global_alpha
 # Problematically, this approach meant that the "most outlying" cells were always detected as outliers
 # Changed to GESD (below) to allow for statistical testing for outliers
 
-#get_z_scores <- function(Matrix){
-#  Sd   <- apply(Matrix, 2, function(x) sd(x, na.rm=T))
-#  Mean <- apply(Matrix, 2, function(x) mean(x, na.rm=T))
-#  centered <- suppressWarnings(t(t(Matrix) - Mean))
-#  z_scores <- suppressWarnings(t(t(centered) / Sd))
-#  return(z_scores)
-#}
+get_z_scores <- function(Matrix){
+  Sd   <- apply(Matrix, 2, function(x) sd(x, na.rm=T))
+  Mean <- apply(Matrix, 2, function(x) mean(x, na.rm=T))
+  centered <- suppressWarnings(t(t(Matrix) - Mean))
+  z_scores <- suppressWarnings(t(t(centered) / Sd))
+  return(z_scores)
+}
 
 # Applying Generalized Extreme Studentized Deviate (GEDS) Test
 # R implementation taken from https://github.com/raunakms/GESD
@@ -97,6 +100,11 @@ CCLE_tpm <- data.table::fread("data/CCLE/OmicsExpressionProteinCodingGenesTPMLog
 genes <- rownames(CCLE_tpm)
 rm(CCLE_tpm)
 
+
+
+
+if(method == "gesd"){
+
 #############################
 # Read In Data
 #############################
@@ -140,9 +148,10 @@ gene_effect_global_outliers <- gene_effect %>%
 
 
 
-#ggplot(gene_effect_global_z, aes(x=z)) +
-#  geom_density() +
-#  geom_vline(xintercept = -2)
+gene_effect_global_z_scores <- get_z_scores(gene_effect) %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "global_z_score")
 
 
 
@@ -301,8 +310,9 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
         by = c("gene_ID", "cell_ID")
       ) %>%
       # Defining dependent genes as outliers with values < mean
-      mutate(dependent = ifelse(local_outlier & gene_effect < local_gene_effect_mean, TRUE, FALSE)) %>%
-      dplyr::select(cell_ID, gene_ID, gene_effect, local_gene_effect_mean, local_outlier_rank, local_outlier, dependent)
+      mutate(local_dependent = ifelse(local_outlier & gene_effect < local_gene_effect_mean, TRUE, FALSE)) %>%
+      mutate(dependent = local_dependent) %>%
+      dplyr::select(cell_ID, gene_ID, gene_effect, local_gene_effect_mean, local_outlier_rank, local_outlier, local_dependent, dependent)
     
     if(global_alpha != FALSE){
       lin_gene_effect <- lin_gene_effect %>%
@@ -311,7 +321,13 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
       
     }
     
-    rm(lin_gene_effect_matrix)
+    #rm(lin_gene_effect_matrix)
+    
+    indiv_gene_effect_local_z_scores <- get_z_scores(lin_gene_effect_matrix) %>%
+      as.data.frame() %>%
+      rownames_to_column("cell_ID") %>%
+      pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "local_z_score") %>%
+      mutate(lineage = lin)
   
   }
   
@@ -335,12 +351,12 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
       
       # First getting original sentitivty and gene-wise sentitivty means
       rbind(colMeans(lin_GDSC_matrix, na.rm = T) %>% 
-              matrix(nrow = 1, dimnames = list("local_IC50_mean",colnames(lin_GDSC_matrix)))
+              matrix(nrow = 1, dimnames = list("local_LN_IC50_mean",colnames(lin_GDSC_matrix)))
             ) %>%
       # Transposing data
       rownames_to_column("cell_ID") %>%
       data.table::transpose(make.names = "cell_ID", keep.names = "target_ID") %>%
-      pivot_longer(cols = -c(target_ID, local_IC50_mean), names_to = "cell_ID", values_to = "IC50") %>%
+      pivot_longer(cols = -c(target_ID, local_LN_IC50_mean), names_to = "cell_ID", values_to = "LN_IC50") %>%
       # Then joining with z-scores and calculated outliers
       inner_join(
         get_outliers(lin_GDSC_matrix,local_alpha) %>%
@@ -353,9 +369,10 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
       ) %>%
       #mutate(IC50 = round(exp(IC50), 2), local_IC50_mean = round(exp(local_IC50_mean), 2)) %>%
       # Defining sensitive genes as outliers with values < mean
-      mutate(sensitive = ifelse(local_outlier & IC50 < local_IC50_mean, TRUE, FALSE)) %>%
+      mutate(local_sensitive = ifelse(local_outlier & LN_IC50 < local_LN_IC50_mean, TRUE, FALSE)) %>%
+      mutate(sensitive = local_sensitive) %>%
       separate(target_ID, into = c("dataset", "drug_name", "gene_ID")) %>%
-      dplyr::select(dataset, cell_ID, drug_name, gene_ID, IC50, local_IC50_mean, local_outlier_rank, local_outlier, sensitive)
+      dplyr::select(dataset, cell_ID, drug_name, gene_ID, LN_IC50, local_LN_IC50_mean, local_outlier_rank, local_outlier, local_sensitive, sensitive)
     
     
     if(global_alpha != FALSE){
@@ -371,44 +388,58 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
   }
   
   
+  # Dealing with cases of n < 4 for drug sensitivity or gene effect data
   if(length(which(lineage_cells$cell_ID %in% rownames(gene_effect))) < 4){
-    lin_gold_standards <- lin_drug_sensitivity %>% 
-      dplyr::select(cell_ID, gene_ID, sensitive) %>%
-      mutate(is_gold_standard = sensitive) %>%
-      filter(is_gold_standard) %>%
-      unique() %>%
-      mutate(lineage = lin, dependent = FALSE) %>%
-      dplyr::select(cell_ID,gene_ID,dependent,sensitive,is_gold_standard,lineage)
+    #lin_gold_standards <- lin_drug_sensitivity %>% 
+    #  dplyr::select(cell_ID, gene_ID, local_sensitive, global_sensitive, sensitive) %>%
+    #  mutate(is_gold_standard = sensitive) %>%
+    #  filter(is_gold_standard) %>%
+    #  unique() %>%
+    #  mutate(lineage = lin, dependent = FALSE, local_dependent=FALSE) %>%
+    #  dplyr::select(cell_ID,gene_ID,local_dependent, global_dependent,dependent,local_sensitive,global_sensitive,sensitive,is_gold_standard,lineage)
+    lin_gene_effect <- gene_effect_global_outliers %>%
+      mutate(local_gene_effect_mean = NA, local_outlier_rank = NA, local_outlier = FALSE, local_dependent = FALSE, dependent=global_dependent) %>%
+      dplyr::select(cell_ID, gene_ID, gene_effect, local_gene_effect_mean, local_outlier_rank, local_outlier, local_dependent, global_dependent,dependent)
   }else if(length(which(lineage_cells$cell_ID %in% rownames(GDSC))) < 4){
-    lin_gold_standards <- lin_gene_effect %>% 
-      dplyr::select(cell_ID, gene_ID, dependent) %>%
-      mutate(is_gold_standard = dependent) %>%
-      filter(is_gold_standard) %>%
-      unique() %>%
-      mutate(lineage = lin, sensitive = FALSE) %>%
-      dplyr::select(cell_ID,gene_ID,dependent,sensitive,is_gold_standard,lineage)
-  }else{
+    #lin_gold_standards <- lin_gene_effect %>% 
+    #  dplyr::select(cell_ID, gene_ID, local_dependent, global_dependent,dependent) %>%
+    #  mutate(is_gold_standard = dependent) %>%
+    #  filter(is_gold_standard) %>%
+    #  unique() %>%
+    #  mutate(lineage = lin, sensitive = FALSE, local_sensitive = FALSE) %>%
+    #  dplyr::select(cell_ID,gene_ID,local_dependent, global_dependent,dependent,local_sensitive,global_sensitive,sensitive,is_gold_standard,lineage)
+    lin_drug_sensitivity <- GDSC_global_outliers %>%
+      mutate(local_LN_IC50_mean = NA, local_outlier_rank = NA, local_outlier = FALSE, local_sensitive = FALSE, sensitive=global_sensitive) %>%
+      dplyr::select(dataset, cell_ID, drug_name, gene_ID, LN_IC50, local_LN_IC50_mean, local_outlier_rank, local_outlier, local_sensitive, global_sensitive,sensitive)
+  }
     
   #############################
   # Combined Gold Standards
   #############################
   
   lin_gold_standards <- full_join(
-    lin_gene_effect %>% dplyr::select(cell_ID, gene_ID, dependent),
-    lin_drug_sensitivity %>% dplyr::select(cell_ID, gene_ID, sensitive),
+    lin_gene_effect %>% dplyr::select(cell_ID, gene_ID,local_dependent, global_dependent, dependent),
+    # Because there are many combinations of drugs and drug-targets, just take the max value for sensitivity to avoid duplicates
+    lin_drug_sensitivity %>% 
+      group_by(cell_ID, gene_ID) %>% 
+      summarise(local_sensitive = max(local_sensitive, na.rm = T),global_sensitive = max(global_sensitive, na.rm = T), sensitive = max(sensitive, na.rm = T)) %>%
+      ungroup(),
     by = c("cell_ID", "gene_ID")
     ) %>%
     mutate(is_gold_standard = ifelse(dependent, TRUE, ifelse(sensitive, TRUE, FALSE))) %>%
     filter(is_gold_standard) %>%
     unique() %>%
-    mutate(lineage = lin)
+    mutate(lineage = lin) %>%
+    dplyr::select(lineage,cell_ID,gene_ID,local_dependent, global_dependent,dependent,local_sensitive,global_sensitive,sensitive,is_gold_standard)
   
-  }
+  
   
   if(lin == sort(unique(CCLE_sample_info$lineage))[1]){
     gold_standards <- lin_gold_standards
+    gene_effect_local_z_scores <- indiv_gene_effect_local_z_scores
   }else{
     gold_standards <- rbind(gold_standards, lin_gold_standards)
+    gene_effect_local_z_scores <- rbind(gene_effect_local_z_scores,indiv_gene_effect_local_z_scores)
   }
   
   
@@ -418,13 +449,21 @@ for(lin in sort(unique(CCLE_sample_info$lineage))){
 
 gold_standards <- gold_standards %>%
   mutate(dependent = ifelse(is.na(dependent), FALSE, dependent),
-         sensitive = ifelse(is.na(sensitive), FALSE, sensitive)
+         sensitive = ifelse(is.na(sensitive), FALSE, sensitive),
+         local_dependent = ifelse(is.na(local_dependent), FALSE, local_dependent),
+         local_sensitive = ifelse(is.na(local_sensitive), FALSE, local_sensitive),
+         global_dependent = ifelse(is.na(global_dependent), FALSE, global_dependent),
+         global_sensitive = ifelse(is.na(global_sensitive), FALSE, global_sensitive)
          ) %>%
   unique()
   
 write_csv(gold_standards, "validation_data/all_gold_standards.csv")
 
 
+gene_effect_z_scores <- full_join(gene_effect_global_z_scores, gene_effect_local_z_scores, by = c("cell_ID","gene_ID")) %>%
+  dplyr::select(lineage,cell_ID,gene_ID,global_z_score,local_z_score)
+
+write_csv(gene_effect_z_scores, "validation_data/gene_effect_z_scores.csv")
 
 
 
@@ -458,3 +497,145 @@ write_csv(summary,"validation_data/summary_all_gold_standards.csv")
 #test <- read_csv("validation_data/all_gold_standards.csv") %>%
 #  filter(gene_ID == "CCNF") %>%
 #  left_join(gene_effect_global_outliers, by = c("gene_ID", "cell_ID"))
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+if(method=="picklesv3"){
+  
+
+
+
+###################
+# PICKLES v3
+###################
+# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9825567/
+# https://pickles.hart-lab.org/
+
+# Recommended thresholds
+# BF > 10
+# Z < -4
+# Chronos < -0.75
+
+  
+# Set Thresholds for all gold-standards
+z_th <- -4
+BF_th <- 10
+chronos_th <- -0.75
+
+picklesv3 <- fread("data/PICKLESv3/master_table_Avana_Score_TKOv3_BF_Zscore_Expr_LOF_GOF_18959genes_1162cells_lineage_disease.txt")
+
+ggplot(picklesv3 %>% pivot_longer(cols = c(Avana_Z,Avana_BF,Avana_Chronos,Score_Z,Score_BF,TKOv3_Z,TKOv3_BF), names_to = "measure", values_to = "value"), aes(x=value)) +
+  geom_density() +
+  facet_wrap(~measure, scales = "free")
+
+ggsave("plots/QC/picklesv3.png", width = 50, height = 50, units = "cm", dpi = 300)
+
+
+picklesv3_all_gold_standards <- picklesv3 %>%
+  dplyr::select(-c(V1,LOF,GOF,primary_disease,lineage,Expr,Cell_Line)) %>%
+  dplyr::rename(cell_ID=stripped_cell_line_name, gene_ID=Gene) %>%
+  relocate(cell_ID) %>%
+  unique() %>%
+  filter(cell_ID %in% CCLE_sample_info$cell_ID, gene_ID %in% genes) %>%
+  # Add thresholds
+  mutate(
+    Avana_Z_essential = Avana_Z < z_th,
+    Avana_BF_essential = Avana_BF > BF_th,
+    Avana_Chronos_essential = Avana_Chronos < chronos_th,
+    Score_Z_essential = Score_Z < z_th,
+    Score_BF_essential = Score_BF > BF_th,
+    TKOv3_Z_essential = TKOv3_Z < z_th,
+    TKOv3_BF_essential = TKOv3_BF > BF_th,
+  ) %>%
+  # Check that all AVAILABLE annotations agree on essentiality
+  rowwise() %>%
+  mutate(
+    consensus_essential = sum(Avana_Z_essential,Avana_BF_essential,Avana_Chronos_essential,Score_Z_essential,Score_BF_essential,TKOv3_Z_essential,TKOv3_BF_essential, na.rm = T) == 
+      sum(!is.na(c(Avana_Z_essential,Avana_BF_essential,Avana_Chronos_essential,Score_Z_essential,Score_BF_essential,TKOv3_Z_essential,TKOv3_BF_essential)))
+  ) %>%
+  ungroup() %>%
+  filter(consensus_essential) %>%
+  dplyr::select(cell_ID, gene_ID) %>%
+  unique() %>%
+  left_join(CCLE_sample_info %>% dplyr::select(cell_ID,lineage), by = "cell_ID") %>%
+  dplyr::select(lineage, cell_ID, gene_ID)
+
+write_csv(picklesv3_all_gold_standards, "validation_data/all_gold_standards.csv")
+
+
+
+# Set thresholds for rare essential genes
+z_th <- -3
+BF_th <- 8
+chronos_th <- -0.5
+global_essentiality_freq_thresh <- 0.5
+lineage_essentiality_freq_thresh <- 0.25
+
+# Essentiality frequency
+
+picklesv3_rare_gold_standards <- picklesv3 %>%
+  dplyr::select(-c(V1,LOF,GOF,primary_disease,lineage,Expr,Cell_Line)) %>%
+  dplyr::rename(cell_ID=stripped_cell_line_name, gene_ID=Gene) %>%
+  relocate(cell_ID) %>%
+  unique() %>%
+  filter(cell_ID %in% CCLE_sample_info$cell_ID, gene_ID %in% genes) %>%
+  # Add thresholds
+  mutate(
+    Avana_Z_essential = Avana_Z < z_th,
+    Avana_BF_essential = Avana_BF > BF_th,
+    Avana_Chronos_essential = Avana_Chronos < chronos_th,
+    Score_Z_essential = Score_Z < z_th,
+    Score_BF_essential = Score_BF > BF_th,
+    TKOv3_Z_essential = TKOv3_Z < z_th,
+    TKOv3_BF_essential = TKOv3_BF > BF_th,
+  ) %>%
+  # Check that all AVAILABLE annotations agree on essentiality
+  rowwise() %>%
+  mutate(
+    consensus_essential = sum(Avana_Z_essential,Avana_BF_essential,Avana_Chronos_essential,Score_Z_essential,Score_BF_essential,TKOv3_Z_essential,TKOv3_BF_essential, na.rm = T) == 
+      sum(!is.na(c(Avana_Z_essential,Avana_BF_essential,Avana_Chronos_essential,Score_Z_essential,Score_BF_essential,TKOv3_Z_essential,TKOv3_BF_essential)))
+  ) %>%
+  ungroup() %>%
+  filter(consensus_essential) %>%
+  dplyr::select(cell_ID, gene_ID) %>%
+  unique() %>%
+  left_join(CCLE_sample_info %>% dplyr::select(cell_ID,lineage), by = "cell_ID") %>%
+  # Get the total # of cells
+  mutate(total_n = length(unique(cell_ID))) %>%
+  # Get the global frequency of essentiality
+  group_by(gene_ID) %>% mutate(global_essentiality_count = length(unique(cell_ID))) %>% ungroup() %>%
+  # Get the total # of cells per lineage
+  group_by(lineage) %>% mutate(lineage_n = length(unique(cell_ID))) %>% ungroup() %>%
+  # Get the lineage frequency of essentiality
+  group_by(gene_ID,lineage) %>% mutate(lineage_essentiality_count = length(unique(cell_ID))) %>% ungroup() %>%
+  mutate(global_essentiality_frequency = global_essentiality_count / total_n,
+         lineage_essentiality_frequency = lineage_essentiality_count / lineage_n) %>%
+  # Filter frequency thresholds
+  filter(global_essentiality_frequency < global_essentiality_freq_thresh, lineage_essentiality_frequency < lineage_essentiality_freq_thresh) %>%
+  dplyr::select(lineage, cell_ID, gene_ID, global_essentiality_frequency, lineage_essentiality_frequency)
+
+write_csv(picklesv3_rare_gold_standards, "validation_data/rare_gold_standards.csv")
+#original_gold_standards <- fread("validation_data/all_gold_standards.csv")
+
+#compare <- original_gold_standards %>%
+#  dplyr::select(cell_ID,gene_ID) %>%
+#  left_join(picklesv3_gold_standards %>% dplyr::select(cell_ID,gene_ID) %>% mutate(match=TRUE)) %>%
+#  mutate(match = ifelse(is.na(match), FALSE, match)) %>%
+#  group_by(match) %>%
+#  summarise(count=n())
+
+
+}
