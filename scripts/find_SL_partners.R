@@ -80,6 +80,9 @@ genes <- fread(paste0("validation_data/CCLE_",network_choice,"/counts.csv"),sep 
 
 if(!file.exists("data/SL/Berrena_et_al_gMCSs/gMCS_SL_pairs.csv")){
   
+  # To score the gMCS SL-predictions, predictions were scored between 0 and 1 based on the average positive predictive value of the model in the original paper's analysis
+  
+  
   # Get names of various models used for predictions
   
   names <- c("Human1",
@@ -155,7 +158,8 @@ if(!file.exists("data/SL/Berrena_et_al_gMCSs/gMCS_SL_pairs.csv")){
     rename(gene2_hgnc=hgnc_symbol) %>%
     mutate(gene2_hgnc=ifelse(!str_detect(gene2,"^ENSG"),gene2,gene2_hgnc)) %>%
     dplyr::select(gene1=gene1_hgnc,gene2=gene2_hgnc,confidence) %>%
-    group_by(gene1,gene2)
+    group_by(gene1,gene2) %>%
+    summarise(confidence=max(confidence))
   
   write_csv(gMCS_SL_pairs,"data/SL/Berrena_et_al_gMCSs/gMCS_SL_pairs.csv")
   
@@ -175,9 +179,11 @@ if(!file.exists("data/SL/BioGRID/SSL_filtered.csv")){
   
   # Read in entire BioGRID database, keeping only relevant columns
   BioGRID <- data.table::fread("data/SL/BioGRID/BIOGRID-ALL-4.4.224.tab3.txt", sep = "\t", select = c(
-    "Official Symbol Interactor A","Official Symbol Interactor B","Synonyms Interactor A","Synonyms Interactor B","Experimental System","Throughput"
+    "Official Symbol Interactor A","Official Symbol Interactor B","Synonyms Interactor A","Synonyms Interactor B","Experimental System","Throughput", "Organism Name Interactor A", "Organism Name Interactor B"
   )) %>%
-    # Filter to data realted to synthetic lethality and synthetic doasge lethality
+    # Filter to human data
+    filter(`Organism Name Interactor A` == "Homo sapiens" & `Organism Name Interactor B` == "Homo sapiens") %>%
+    # Filter to data related to synthetic lethality and synthetic doasge lethality
     filter(`Experimental System` %in% c("Synthetic Lethality","Synthetic Growth Defect","Dosage Lethality","Dosage Growth Defect","Negative Genetic")) %>%
     # Removing incompatible gene IDs and expanding synonyms
     mutate(`Synonyms Interactor A`=paste0(`Synonyms Interactor A`,"|-")) %>%
@@ -229,20 +235,30 @@ BioGRID_SSL <- BioGRID_SSL %>% filter(gene1 %in% genes & gene2 %in% genes)
 # Prepare CGIdb
 ######################
 
-CGIdb <- read_csv("data/SL/CGIdb/All_synthetic_lethality_gene_pairs.csv") %>%
-  group_by(symbol1,symbol2) %>%
-  summarise(n_ocurrences = n())
 
-max_occurences <- max(CGIdb$n_ocurrences)
-min_occurences <- min(CGIdb$n_ocurrences)
+# This version is downloaded from the website http://www.medsysbio.org/CGIdb/data/all_SL/   v0.1
+CGIdb_old <- read_csv("data/SL/CGIdb/All_synthetic_lethality_gene_pairs.csv") %>%
+  dplyr::select(geneid1,symbol1,geneid2,symbol2) %>%
+  unique()
+
+# This version was supplied by the authors and includes scores
+CGIdb <- read_csv("data/SL/CGIdb/CGIdb_all_prediction_table.csv") %>%
+  filter(type=="SL") %>%
+  dplyr::select(gene_id_1,gene_id_2,score) %>%
+  unique() %>%
+  inner_join(CGIdb_old, by=c("gene_id_1"="geneid1","gene_id_2"="geneid2"))
+
+
+max_score <- max(CGIdb$score)
+min_score <- min(CGIdb$score)
 
 CGIdb <- CGIdb %>%
-  mutate(confidence = (n_ocurrences-min_occurences)/(max_occurences-min_occurences)) %>%
+  mutate(confidence = (score-min_score)/(max_score-min_score)) %>%
   dplyr::select(gene1=symbol1,gene2=symbol2,confidence)
 
 CGIdb <- CGIdb %>% filter(gene1 %in% genes & gene2 %in% genes)
 
-suppressWarnings(rm(max_occurences,min_occurences))
+suppressWarnings(rm(max_score,min_score))
 
 
 ######################
@@ -298,6 +314,7 @@ rm(max_occurences,min_occurences,max_score,min_score)
 ######################
 
 slorth <- fread("data/SL/Slorth/h.sapiens_ssl_predictions.csv", sep = "\t", col.names = c("gene1","gene2","ENSG1","ENSG2","species","source","n_sources","score")) %>%
+  filter(source=="Slorth") %>%
   dplyr::select(gene1,gene2,score)
 
 max_score <- max(slorth$score)
@@ -339,13 +356,13 @@ rm(max_score,min_score)
 # Combined all sources together
 
 SL <- rbind(
-  BioGRID_SSL %>% mutate(source="BioGRID"),
+  BioGRID_SSL %>% mutate(source="BioGRID", confidence = 2*(confidence + 1)),   # Increasing scores for experimentally validated databases
   CGIdb %>% mutate(source="CGIdb"),
   gMCS_SL_pairs %>% mutate(source="gMCS"),
   SiLi %>% mutate(source="SiLi"),
   SLOAD %>% mutate(source="SLOAD"),
   slorth %>% mutate(source="slorth"),
-  synlethdb %>% mutate(source="synlethdb")
+  synlethdb %>% mutate(source="synlethdb", confidence = 2*(confidence + 1))   # Increasing scores for experimentally validated databases
 )
 
 # Copy all pairs in reverse
@@ -355,13 +372,13 @@ SL <- rbind(
   SL %>% dplyr::select(gene1=gene2,gene2=gene1,confidence,source)
 ) %>%
   group_by(gene1,gene2,source) %>%
-  summarise(confidence=max(confidence))
+  summarise(confidence=max(confidence)) %>%
+  ungroup() 
 
 # Combine scores
 
 SL <- SL %>%
   pivot_wider(names_from = "source", values_from = "confidence") %>%
-  ungroup() %>%
   mutate(final_score = rowSums(!is.na(dplyr::select(., -c(gene1, gene2)))) + rowSums(dplyr::select(., -c(gene1, gene2)), na.rm=T)) %>%
   group_by(gene1) %>%
   arrange(desc(final_score)) %>%
@@ -369,6 +386,12 @@ SL <- SL %>%
   filter(rank <= 5) %>%
   ungroup() %>%
   arrange(gene1, rank)
+
+max_score <- max(SL$final_score)
+min_score <- min(SL$final_score)
+
+SL <- SL %>% mutate(score = (final_score-min_score)/(max_score-min_score)) %>%
+  dplyr::select(gene1,gene2,rank,score)
 
 write_csv(SL,paste0("validation_data/CCLE_",network_choice,"/SL_partners_max_",max_SL,".csv"))
 
