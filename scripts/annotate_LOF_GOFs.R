@@ -7,19 +7,36 @@ suppressPackageStartupMessages (library(tidyverse, quietly = T))
 suppressPackageStartupMessages (library(data.table, quietly = T))
 suppressPackageStartupMessages (library(jsonlite, quietly = T))
 suppressPackageStartupMessages (library(httr, quietly = T))
+suppressPackageStartupMessages (library(multidplyr, quietly = T))
 
 
 # Handling input arguments
 option_list = list(
-  make_option(c("-n", "--network"), type="character", default="STRINGv11", 
-              help="network to use", metavar ="Network")
+  make_option(c("-t", "--threads"), type="integer", default=4, 
+              help="Number of threads to use if running in parallel", metavar ="Threads")
 );
 
 
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
 
-network_choice <- opt$network
+threads <- opt$threads
+
+
+#cl <- new_cluster(threads)
+#cl
+
+#############################
+# Get cell line information
+###############################
+
+sample_info <- read_csv("data/CCLE/Model.csv") %>%
+  dplyr::rename(DepMap_ID=ModelID, lineage=OncotreeLineage, cell_ID=StrippedCellLineName)
+
+
+
+
+
 
 #Paper: https://www.sciencedirect.com/science/article/pii/S0002929721003840#app3
 
@@ -485,27 +502,142 @@ write("Loss-of-function / Gain-of-function Mutation Predictions\n--------------\
 write.table(LOF_GOF_annotation_stats %>% group_by(annotation_available) %>% summarise(count=n()), "log/LOF_GOF_annotation_stats.txt", append = T, sep = "\t", row.names = F)
 write("\n--------------\n", "log/LOF_GOF_annotation_stats.txt", append = T)
 
+# For missing annotations, looking for other annotations in the same gene
+
+missing_annotations <- LOF_GOF_annotation_stats %>%
+  filter(!annotation_available)
+
+replacement_annotations <- LOF_GOF_annotation_stats %>%
+  filter(gene_ID %in% unique(missing_annotations$gene_ID)) %>%
+  filter(annotation_available) %>%
+  # Get unique list of annotations for each gene
+  ungroup() %>%
+  group_by(gene_ID,pos,ref) %>%
+  summarise(LOF_total_score=max(LOF_total_score), GOF_total_score=max(GOF_total_score)) %>%
+  ungroup() %>%
+  unique() %>%
+  # Get the sum of scores for GOF and LOF annotations
+  group_by(gene_ID) %>%
+  summarise(LOF_total_score=sum(LOF_total_score),GOF_total_score=sum(GOF_total_score)) %>%
+  ungroup() %>%
+  mutate(final_prediction=ifelse(GOF_total_score>LOF_total_score, "GOF", "LOF"),
+         annotation_available="predicted at gene-level")
+
+# Replace annotations
+fixed_annotations <- missing_annotations %>%
+  dplyr::select(-final_prediction,-annotation_available) %>%
+  left_join(replacement_annotations %>% dplyr::select(gene_ID,final_prediction,annotation_available), by = "gene_ID") %>%
+  ungroup() %>%
+  # Remaining missing annotations are assigned LOF
+  mutate(final_prediction = ifelse(is.na(final_prediction), "LOF",final_prediction),
+         annotation_available = ifelse(is.na(annotation_available),FALSE,annotation_available)) %>%
+  # Rejoin with available annotations
+  rbind(LOF_GOF_annotation_stats %>% filter(annotation_available))
 
 
+fixed_annotations %>% group_by(annotation_available) %>% summarise(n())
+
+#annotation_available     `n()`
+#<chr>                    <int>
+#1 FALSE                    16638
+#2 TRUE                    956471
+#3 predicted at gene-level 419295
+
+fixed_annotations %>% group_by(final_prediction) %>% summarise(n())
+
+#final_prediction   `n()`
+#<chr>              <int>
+#1 GOF               278410
+#2 LOF              1113994
+
+
+
+
+# Finally, replace mutation file with these annotations
+
+
+mutation <- fixed_annotations
+
+
+
+#######################
+# Copy Number Variants
+#######################
+
+cnv <- fread("data/CCLE/corrected_cnv.csv") %>%
+  pivot_longer(-gene_ID, names_to = "cell_ID", values_to = "cnv") %>%
+  filter(cnv != 0) %>%
+  mutate(cnv_LOF_GOF=ifelse(cnv==1, "GOF","LOF"))
+
+
+
+
+#######################
+# Combining
+#######################
+
+all_annotations <- mutation %>%
+  left_join(sample_info %>% dplyr::select(DepMap_ID,cell_ID), by = "DepMap_ID") %>%
+  full_join(cnv, by=c("gene_ID","cell_ID")) %>%
+                                      # Check if cnv_LOF_GOF isn't NA
+  mutate(combined_prediction = ifelse(!is.na(cnv_LOF_GOF), 
+                                      # TRUE: Check if SNP prediction is NA
+                                      ifelse(is.na(final_prediction), 
+                                             #TRUE: Make it the CNV annotation
+                                             cnv_LOF_GOF, 
+                                             # FALSE: Check if the CNV annotation matches the SNP annotation
+                                             ifelse(final_prediction==cnv_LOF_GOF,
+                                                    # TRUE: Make it the SNP annotation
+                                                    final_prediction,
+                                                    # FALSE: Make it "both"
+                                                    "both")),
+                                      # FALSE: Make it the SNP annotation
+                                      final_prediction
+                                      )
+         
+         )
+
+all_annotations %>% group_by(combined_prediction) %>% summarise(n())
+
+#combined_prediction   `n()`
+#<chr>                 <int>
+# 1 GOF                  610742
+#2 LOF                 1457692
+#3 both                   9501
+
+write_csv(all_annotations,"data/LOF_GOF_annotations_all_evidence.csv")
+
+#all_annotations <- fread("data/LOF_GOF_annotations_all_evidence.csv")
 
 
 #################
 # Final Output
 ################
 
-sample_info <- read_csv("data/CCLE/Model.csv") %>%
-  dplyr::select(DepMap_ID=ModelID,cell_ID=StrippedCellLineName)
-
-
-
-LOF_GOF_annotations <- mutation %>%
-  left_join(sample_info) %>%
-  dplyr::select(cell_ID,gene_ID,annotation=final_prediction) %>%
+LOF_GOF_annotations <- all_annotations %>%
+  dplyr::select(cell_ID,gene_ID,annotation=combined_prediction) %>%
   unique() %>%
+  ungroup() %>%
+  # Need to indicate if a single gene has both GOF and LOF mutations
   group_by(cell_ID,gene_ID) %>%
   summarise(annotation=paste0(annotation, collapse = "and")) %>%
   ungroup() %>%
   mutate(annotation=ifelse(str_detect(annotation,"and"),"both",annotation))
+
+#annotation   count
+#<chr>        <int>
+#1 GOF         555236
+#2 LOF        1283672
+#3 both         30989
+
+summary <- LOF_GOF_annotations %>% group_by(annotation) %>% summarise(count=n())
+
+write_csv(summary,"validation_data/LOF_GOF_total_summary.csv")
+
+summary <- LOF_GOF_annotations %>% group_by(cell_ID,annotation) %>% summarise(count=n()) %>% pivot_wider(names_from = annotation, values_from = count)
+
+write_csv(summary,"validation_data/LOF_GOF_cell_summary.csv")
+
 
 write("Final predictions made. Note: Missing predictions assigned to 'LOF'\n--------------\n","log/LOF_GOF_annotation_stats.txt",append = T)
 write.table(LOF_GOF_annotations %>% group_by(annotation) %>% summarise(count=n()), "log/LOF_GOF_annotation_stats.txt", append = T,sep = "\t", row.names = F)
