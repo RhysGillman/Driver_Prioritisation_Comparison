@@ -673,7 +673,7 @@ for cell_type in ${cell_types[@]}; do
     
     
     done
-    
+
 
 ############################################################
 # LOF GOF Annotations                                      #
@@ -687,3 +687,59 @@ then
     echo -e "---------------------------\n\n"
     Rscript --vanilla "scripts/map_genomic_LOF_GOFs.R" -t $threads
 fi
+
+if (($annotate_LOF_GOFs==1))
+then
+    echo -e "\n\n---------------------------"
+    echo -e "Assigning LOF/GOF annotations"
+    echo -e "---------------------------\n\n"
+    Rscript --vanilla "scripts/annotate_LOF_GOFs.R"
+fi
+
+
+############################################################
+# Consensus Drivers                                        #
+############################################################
+
+if (($get_consensus_drivers==1))
+then
+    echo -e "\n\n---------------------------"
+    echo -e "Finding Consensus Drivers"
+    echo -e "---------------------------\n\n"
+    Rscript --vanilla "scripts/get_consensus_drivers.r" -n $network_choice -a $consensus_selection -m "topklists" -t $threads -c "all"
+fi
+
+############################################################
+# Find SL Partners                                         #
+############################################################
+
+if (($find_SL_partners==1))
+then
+    echo -e "\n\n---------------------------"
+    echo -e "Finding SL Partners"
+    echo -e "---------------------------\n\n"
+    Rscript --vanilla "scripts/find_SL_partners.R" -m 5 -n $network_choice
+fi
+
+
+############################################################
+# Evaluations                                              #
+############################################################
+
+
+if (($evaluate_reference_drivers==1))
+then
+    echo -e "\n\n---------------------------"
+    echo -e "Evaluating driver algorithms vs reference drivers"
+    echo -e "---------------------------\n\n"
+    Rscript --vanilla "scripts/evaluate_reference_drivers.r" -n $network_choice -a "ALL" -t $threads -c "all" -b "yes"
+fi
+
+if (($evaluate_SL_partners==1))
+then
+    echo -e "\n\n---------------------------"
+    echo -e "Evaluating driver algorithms vs reference drivers"
+    echo -e "---------------------------\n\n"
+    Rscript --vanilla "scripts/evaluate_SL_partners.r" -s 5 -n $network_choice -a "ALL" -t $threads -b "yes"
+fi
+
