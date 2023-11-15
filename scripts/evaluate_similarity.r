@@ -270,15 +270,18 @@ for(n in top_ns){
   
 }
 
-alg_colours <- read_csv("data/algorithm_colours.csv") %>% deframe()
+
 
 cos_similarity_plot <- cos_similarity_plot %>%
   mutate(algorithm=factor(algorithm, levels = names(alg_colours)))
 
+alg_colours <- read_csv("data/algorithm_colours.csv") %>% deframe()
+# A list of algorithms to show coloured. The Rest will be grey
+coloured_algs <- c("CSN_NCUA","PersonaDrive","PRODIGY","OncoImpact","sysSVM2","PhenoDriverR","DawnRank","SCS")
 
+alg_colours[which(!names(alg_colours) %in% coloured_algs)] <- "grey"
 
-
-ggplot(cos_similarity_plot %>% mutate(start_label = if_else(n_drivers == min(n_drivers), as.character(algorithm), NA_character_),
+ggplot(cos_similarity_plot %>% filter(!str_detect(algorithm,"consensus")) %>% mutate(start_label = if_else(n_drivers == min(n_drivers), as.character(algorithm), NA_character_),
                                   end_label = if_else(n_drivers == max(n_drivers), as.character(algorithm), NA_character_)), 
        aes(x=as.factor(n_drivers),
            y=pos, 
