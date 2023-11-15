@@ -6,7 +6,7 @@ suppressPackageStartupMessages (library(tidyverse, quietly = T))
 suppressPackageStartupMessages (library(data.table, quietly = T))
 suppressPackageStartupMessages (library(foreach, quietly = T))
 suppressPackageStartupMessages (library(doParallel, quietly = T))
-
+suppressPackageStartupMessages (library(ggpubr, quietly = T))
 
 
 
@@ -37,7 +37,7 @@ algorithms <- opt$algorithms
 threads <- opt$threads
 include_badDriver <- tolower(opt$badDriver)
 
-threads <- 10
+threads <- 6
 
 #network_choice <- "own"
 #include_badDriver <- "no"
@@ -288,7 +288,7 @@ write_csv(SL_prediction_stats, paste0("results/CCLE_",network_choice,"/full_resu
 }else{
   message("SL Prediction stats file already exists. Reading in previous results.")
   message(paste0("To stop this, remove file: ", "results/CCLE_",network_choice,"/full_results_SL_partner_level.csv"))
-  SL_prediction_stats <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_SL_partner_level.csv"))
+  SL_prediction_stats <- fread(paste0("results/CCLE_",network_choice,"/full_results_SL_partner_level.csv"))
 }
 
 #old <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_SL_partner_level.csv"))
@@ -297,15 +297,16 @@ write_csv(SL_prediction_stats, paste0("results/CCLE_",network_choice,"/full_resu
 #SL_prediction_stats <- new
 
 alg_of_interest <- c(
-  #"consensus_topklists_geomean_CSN_NCUA_PersonaDrive_PRODIGY_OncoImpact_sysSVM2_PhenoDriverR", # best for reference drivers
+  #"consensus_topklists_geomean_CSN_NCUA_PersonaDrive_PRODIGY_OncoImpact_sysSVM2_PhenoDriverR", # best for STRINGv11 reference drivers
   #"consensus_topklists_median_SCS_DawnRank_sysSVM2",
   #"consensus_topklists_geomean_CSN_NCUA_OncoImpact_sysSVM2",
   
-  "consensus_topklists_geomean_CSN_NCUA_OncoImpact_sysSVM2", # Best for SL partners
-  #"consensus_topklists_median_SCS_DawnRank_sysSVM2", # Best for rare SL partners
+  "consensus_topklists_geomean_CSN_NCUA_OncoImpact_sysSVM2", # Best for STRINGv11 SL partners
+  "consensus_topklists_median_SCS_DawnRank_sysSVM2", # Best for STRINGv11 rare SL partners
   "consensus_topklists_geomean_ALL",
   
-  
+  #"consensus_topklists_geomean_sysSVM2_PNC", # Best for own SL partners
+  #"consensus_topklists_geomean_PRODIGY_sysSVM2_PhenoDriverR", # Best for own rare SL partners
   
   
   "DawnRank",
@@ -328,7 +329,7 @@ alg_of_interest <- c(
   #"SPCC_DFVS",
   #"SPCC_MDS",
   #"SPCC_MMS",
-  #"SPCC_NCUA",
+  "SPCC_NCUA",
   #"SSN_DFVS",
   #"SSN_MDS",
   #"SSN_MMS",
@@ -352,21 +353,15 @@ SL_prediction_stats_summarised <- SL_prediction_stats %>%
   filter(n()>=10) %>%
   summarise(
     mean_TP = mean(TP),
-    #mean_PPV = mean(PPV),
     mean_precision = mean(precision),
     mean_recall = mean(recall),
     mean_F1 = median(F1),
-    #median_TP = median(TP),
-    #median_PPV = median(PPV),
-    #median_precision = median(precision),
-    #median_recall = median(recall),
-    #median_F1 = median(F1)
     sample_size = n()
   ) %>%
   pivot_longer(cols = -c(algorithm,n,sample_size), names_to = "measure", values_to = "value") %>%
   mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1")),
          algorithm = factor(algorithm, levels = names(alg_colours)),
-         sample_size = ifelse(algorithm=="badDriver",length(samples),sample_size))
+         sample_size = ifelse(algorithm=="badDriver",length(tmp_samples),sample_size))
 
 max_predictions<-50
 
@@ -400,37 +395,38 @@ ggplot(mapping=aes(x = n, y = value, color = algorithm)) +
 
 ggsave(paste0("results/CCLE_",network_choice,"/SL_partner_level_stats_max_",max_predictions,".png"),width = 50, height = 20, units = "cm", dpi = 300)
 
-#mean(SL_prediction_stats$length_gs)
+# Stats Plot
 
-#SL_prediction_stats_summarised <- SL_prediction_stats %>%
-#  group_by(lineage,algorithm,n) %>%
-#  summarise(
-#    mean_TP = mean(TP),
-#    mean_PPV = mean(PPV),
-#    mean_precision = mean(precision),
-#    mean_recall = mean(recall),
-#    mean_F1 = median(F1)
-#  ) %>%
-#  pivot_longer(cols = -c(lineage,algorithm,n), names_to = "measure", values_to = "value")
+stats_top_n <- 10
 
-#ggplot(SL_prediction_stats_summarised %>% 
-#         filter(algorithm %in% alg_of_interest) %>% 
-#         filter(n<=100), 
-#       aes(x = n, y = value, color = algorithm)) +
-#  geom_line() +
-#  ylab("Average Value") +
-#  xlab("Number of Predicted Sensitive Genes") +
-#  theme_light() +
-#  facet_wrap(lineage ~ measure, scales = "free", ncol = 5)
-#  #facet_grid(rows = vars(lineage), cols = vars(measure), scales = "free")
+stats_plot <- SL_prediction_stats %>%
+  ungroup() %>%
+  filter(n==stats_top_n) %>%
+  # Combining all badDriver simulations to one mean
+  mutate(algorithm=ifelse(str_detect(algorithm,"bad_sim"), "badDriver", algorithm)) %>%
+  filter(algorithm %in% alg_of_interest) %>%
+  # Only keeping results for samples with > 10 gold standards
+  filter(length_gs >= 10) %>%
+  pivot_longer(cols = c(TP,FP,precision,recall,F1), names_to = "measure", values_to = "value") %>%
+  mutate(algorithm = factor(algorithm, levels = names(alg_colours)))
 
-#ggsave(paste0("results/CCLE_",network_choice,"/SL_partner_level_stats_by_lineage.png"),width = 30, height = 100, units = "cm", dpi = 300)
+# Precision
+
+my_comparisons <- data.frame(a=rep("badDriver",length(alg_of_interest)-1),b=alg_of_interest[which(alg_of_interest!="badDriver")]) %>%
+  transpose() %>%
+  as.list()
+
+ggplot(stats_plot %>% filter(measure=="F1"), aes(x=algorithm, y=value, fill=algorithm)) +
+  geom_boxplot() +
+  scale_fill_manual(breaks = names(alg_colours), values = alg_colours) +
+  guides(fill="none") +
+  ggtitle("F1-Score of Top 10 Predicted Essential Genes") +
+  labs(y="F1 Score", x="Algorithm" ) +
+  stat_compare_means(method = "wilcox.test",ref.group = "badDriver", label = "p.signif", hide.ns = F) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
-
-
-
-
+ggsave(paste0("results/CCLE_",network_choice,"/SL_partner_level_stats_F1_top_",stats_top_n,".png"),width = 50, height = 20, units = "cm", dpi = 300)
 
 
 
@@ -554,47 +550,6 @@ if(!file.exists(paste0("results/CCLE_",network_choice,"/full_results_SL_partner_
 }
 
 
-alg_of_interest <- c(
-  #"consensus_topklists_geomean_CSN_NCUA_PersonaDrive_PRODIGY_OncoImpact_sysSVM2_PhenoDriverR", # best for reference drivers
-  #"consensus_topklists_median_SCS_DawnRank_sysSVM2",
-  #"consensus_topklists_geomean_CSN_NCUA_OncoImpact_sysSVM2",
-  
-  #"consensus_topklists_geomean_CSN_NCUA_OncoImpact_sysSVM2", # Best for SL partners
-  "consensus_topklists_median_SCS_DawnRank_sysSVM2", # Best for rare SL partners
-  "consensus_topklists_geomean_ALL",
-  
-  
-  
-  
-  "DawnRank",
-  "OncoImpact",
-  "PNC",
-  "PRODIGY",
-  "PersonaDrive",
-  "SCS",
-  "sysSVM2",
-  "PhenoDriverR",
-  
-  #"CSN_DFVS",
-  #"CSN_MDS",
-  #"CSN_MMS",
-  "CSN_NCUA",
-  #"LIONESS_DFVS",
-  #"LIONESS_MDS",
-  #"LIONESS_MMS",
-  #"LIONESS_NCUA",
-  #"SPCC_DFVS",
-  #"SPCC_MDS",
-  #"SPCC_MMS",
-  #"SPCC_NCUA",
-  #"SSN_DFVS",
-  #"SSN_MDS",
-  #"SSN_MMS",
-  #"SSN_NCUA",
-  
-  "badDriver"
-)
-
 alg_colours <- read_csv("data/algorithm_colours.csv") %>% deframe()
 
 
@@ -659,7 +614,57 @@ ggsave(paste0("results/CCLE_",network_choice,"/rare_SL_partner_level_stats_max_"
 
 
 
+alg_colours <- read_csv("data/algorithm_colours.csv") %>% deframe()
 
+lineage_plot_measure <- "mean_precision"
+
+
+lineage_rare_SL_prediction_stats_summarised <- rare_SL_prediction_stats %>%
+  # Combining all badDriver simulations to one mean
+  mutate(algorithm=ifelse(str_detect(algorithm,"bad_sim"), "badDriver", algorithm)) %>%
+  filter(algorithm %in% alg_of_interest) %>%
+  # Only keeping results for samples with > 10 gold standards
+  filter(length_gs >= 10) %>%
+  group_by(lineage,algorithm,n) %>%
+  # Only keep measurements where more than 10 cells are available to calculate mean
+  filter(n()>=10) %>%
+  summarise(
+    mean_TP = mean(TP),
+    #mean_PPV = mean(PPV),
+    mean_precision = mean(precision),
+    mean_recall = mean(recall),
+    mean_F1 = median(F1),
+    #median_TP = median(TP),
+    #median_PPV = median(PPV),
+    #median_precision = median(precision),
+    #median_recall = median(recall),
+    #median_F1 = median(F1)
+    sample_size = n()
+  ) %>%
+  pivot_longer(cols = -c(lineage,algorithm,n,sample_size), names_to = "measure", values_to = "value") %>%
+  mutate(measure = factor(measure, levels = c("mean_TP","mean_recall","mean_precision","mean_F1")),
+         algorithm = factor(algorithm, levels = names(alg_colours)),
+         sample_size = ifelse(algorithm=="badDriver",length(samples),sample_size)) %>%
+  filter(measure==lineage_plot_measure)
+
+N_max<-50
+
+
+ggplot(mapping=aes(x = n, y = value, color = algorithm)) +
+  geom_line(data=lineage_rare_SL_prediction_stats_summarised %>% filter(algorithm %in% alg_of_interest) %>% filter(n<=N_max) %>% filter(!str_detect(algorithm, "consensus|badDriver")), mapping=aes(alpha = sample_size)) +
+  geom_line(data=lineage_rare_SL_prediction_stats_summarised %>% filter(algorithm %in% alg_of_interest) %>% filter(n<=N_max) %>% filter(str_detect(algorithm, "consensus|badDriver")), linetype = "dashed") +
+  scale_color_manual(values = alg_colours) +
+  #scale_linetype_manual(
+  #  breaks = names(alg_colours),
+  #  values = ifelse(str_detect(names(alg_colours),"consensus|badDriver"),"dashed","solid")
+  #) +
+  ylab("Average Value") +
+  xlab("Number of Predicted Sensitive Genes") +
+  guides(colour=guide_legend(title="Algorithm (Colour)"),alpha=guide_legend(title = "Sample Size Remaining (Opacity)")) +
+  theme_light() +
+  facet_wrap(~lineage, scales = "fixed")
+
+ggsave(paste0("results/CCLE_",network_choice,"/rare_SL_partner_level_stats_max_",N_max,"_by_lineage.png"),width = 60, height = 40, units = "cm", dpi = 300)
 
 
 
@@ -685,7 +690,7 @@ ggsave(paste0("results/CCLE_",network_choice,"/rare_SL_partner_level_stats_max_"
 #Gene Effect Quantitative Plots
 ################################
 
-top_colour = 20
+top_colour = 25
 
 gene_effect_z_scores <- fread("validation_data/gene_effect_z_scores.csv")
 
@@ -696,8 +701,13 @@ gene_effect_results <- foreach(alg=unique(SL_partner_results$algorithm), .combin
   # Get SL-partner level results for specific algorithm
   alg_results <- SL_partner_results %>% 
     filter(algorithm==alg) %>% 
+    filter(final_rank <= 100) %>%
     # Just keep the necessary info
-    dplyr::select(algorithm,lineage,cell_ID,target,final_rank)
+    dplyr::select(algorithm,lineage,cell_ID,target,final_rank) %>%
+    # Only keep data with > 10 replicates
+    group_by(lineage,algorithm,final_rank) %>%
+    filter(n()>=10) %>%
+    ungroup()
   
   # Combine this information with the gene effect z-scores
   
@@ -708,18 +718,83 @@ gene_effect_results <- foreach(alg=unique(SL_partner_results$algorithm), .combin
   
   # Summarise the information down to an average z-score per n for each lineage
   
-  alg_results <- alg_results %>%
-    group_by(lineage,algorithm,final_rank) %>%
-    summarise(mean_local_z = mean(local_z_score, na.rm = T), mean_global_z = mean(global_z_score, na.rm = T)) %>%
-    ungroup()
+  #alg_results <- alg_results %>%
+  #  group_by(lineage,algorithm,final_rank) %>%
+  #  summarise(mean_local_z = mean(local_z_score, na.rm = T), mean_global_z = mean(global_z_score, na.rm = T)) %>%
+  #  ungroup()
   
-  alg_results
+  #alg_results
+  
+  
+  foreach(rank_n=seq(1,100), .combine = "rbind") %do% {
+    # Get cumulative mean z-scores for each rank
+    
+    message(paste0("Getting cumulative gene effect means for ", alg, " top ", rank_n))
+    
+    rank_n_results <- alg_results %>%
+      filter(final_rank <= rank_n) %>%
+      group_by(lineage,algorithm) %>%
+      summarise(mean_local_z = mean(local_z_score, na.rm = T), mean_global_z = mean(global_z_score, na.rm = T), .groups = "drop" ) %>%
+      ungroup() %>%
+      mutate(final_rank=rank_n)
+    
+    rank_n_results
+    
+    
+  }
+  
   
 }
 write_csv(gene_effect_results, paste0("results/CCLE_",network_choice,"/full_results_SL_partner_level_gene_effect.csv"))
 }else{
   gene_effect_results <- read_csv(paste0("results/CCLE_",network_choice,"/full_results_SL_partner_level_gene_effect.csv"))
 }
+
+
+alg_of_interest <- c(
+  #"consensus_topklists_geomean_CSN_NCUA_PersonaDrive_PRODIGY_OncoImpact_sysSVM2_PhenoDriverR", # best for STRINGv11 reference drivers
+  #"consensus_topklists_median_SCS_DawnRank_sysSVM2",
+  #"consensus_topklists_geomean_CSN_NCUA_OncoImpact_sysSVM2",
+  
+  #"consensus_topklists_geomean_CSN_NCUA_OncoImpact_sysSVM2", # Best for STRINGv11 SL partners
+  #"consensus_topklists_median_SCS_DawnRank_sysSVM2", # Best for STRINGv11 rare SL partners
+  "consensus_topklists_geomean_ALL",
+  
+  "consensus_topklists_geomean_sysSVM2_PNC", # Best for own SL partners
+  "consensus_topklists_geomean_PRODIGY_sysSVM2_PhenoDriverR", # Best for own rare SL partners
+  
+  
+  "DawnRank",
+  "OncoImpact",
+  "PNC",
+  "PRODIGY",
+  "PersonaDrive",
+  "SCS",
+  "sysSVM2",
+  "PhenoDriverR",
+  
+  #"CSN_DFVS",
+  #"CSN_MDS",
+  #"CSN_MMS",
+  "CSN_NCUA",
+  #"LIONESS_DFVS",
+  #"LIONESS_MDS",
+  #"LIONESS_MMS",
+  #"LIONESS_NCUA",
+  #"SPCC_DFVS",
+  #"SPCC_MDS",
+  #"SPCC_MMS",
+  "SPCC_NCUA",
+  #"SSN_DFVS",
+  #"SSN_MDS",
+  #"SSN_MMS",
+  #"SSN_NCUA",
+  
+  "badDriver"
+)
+
+
+
   
 plot_data <- gene_effect_results %>%
   # Combining all badDriver simulations to one mean
@@ -738,12 +813,74 @@ plot_data <- gene_effect_results %>%
 ggplot(plot_data, aes(x=mean_local_z, y=mean_global_z, colour=point_scale)) +
   geom_point() +
   scale_colour_gradient(high = "red", low = "white", 
-                        breaks = seq(top_colour,0), labels = c(seq(1,top_colour),"max")) +
+                        breaks = seq(top_colour,0), labels = c(seq(1,top_colour),"100 (cap)")) +
   geom_vline(xintercept = 0, colour = "black", alpha = 0.25) +
   geom_hline(yintercept = 0, colour = "black", alpha = 0.25) +
   guides(colour=guide_legend(title="Rank")) +
-  labs(x="Average Gene Effect (Local Z-score)", y= "Average Gene Effect (Global Z-score)") +
+  labs(x="Cumulative Average Gene Effect (Local Z-score)", y= "Cumulative Average Gene Effect (Global Z-score)") +
   theme(panel.background = element_rect(fill="lightgrey")) +
   facet_wrap(~algorithm)
   
 ggsave(paste0("results/CCLE_",network_choice,"/SL_partner_level_gene_effect.png"),width = 30, height = 30, units = "cm", dpi = 300)
+
+
+lineage_plot_alg <- c("PhenoDriverR")
+
+plot_data <- gene_effect_results %>%
+  filter(algorithm==lineage_plot_alg) %>%
+  mutate(point_scale=   ifelse(
+    final_rank <= top_colour, top_colour + 1 - final_rank, (1 - (   (final_rank - min(final_rank)) / (max(final_rank) - min(final_rank))   ))
+  )) %>%
+  arrange(desc(final_rank))
+
+
+ggplot(plot_data, aes(x=mean_local_z, y=mean_global_z, colour=point_scale)) +
+  geom_point() +
+  scale_colour_gradient(high = "red", low = "white", 
+                        breaks = seq(top_colour,0), labels = c(seq(1,top_colour),"100 (cap)")) +
+  geom_vline(xintercept = 0, colour = "black", alpha = 0.25) +
+  geom_hline(yintercept = 0, colour = "black", alpha = 0.25) +
+  guides(colour=guide_legend(title="Rank")) +
+  labs(x="Cumulative Average Gene Effect (Local Z-score)", y= "Cumulative Average Gene Effect (Global Z-score)") +
+  theme(panel.background = element_rect(fill="lightgrey")) +
+  facet_wrap(lineage~algorithm)
+
+ggsave(paste0("results/CCLE_",network_choice,"/SL_partner_level_gene_effect_by_lineage_",paste(lineage_plot_alg, collapse = "_"),".png"),width = 30, height = 30, units = "cm", dpi = 300)
+
+
+
+# Stats Plot
+
+stats_top_n <- 5
+
+stats_plot <- SL_partner_results %>%
+  filter(final_rank <= stats_top_n) %>%
+  left_join(gene_effect_z_scores,
+            by = c("target"="gene_ID","cell_ID","lineage"), 
+            relationship = "many-to-one") %>%
+  group_by(lineage,cell_ID,algorithm) %>%
+  summarise(top10_mean_local_z=mean(local_z_score, na.rm = T), .groups = "drop") %>%
+  mutate(algorithm=ifelse(str_detect(algorithm,"bad_sim"), "badDriver", algorithm)) %>%
+  filter(algorithm %in% alg_of_interest) %>%
+  mutate(algorithm = factor(algorithm, levels = names(alg_colours)))
+
+
+ggplot(stats_plot, aes(x=algorithm, y=top10_mean_local_z, fill=algorithm)) +
+  geom_boxplot() +
+  scale_fill_manual(breaks = names(alg_colours), values = alg_colours) +
+  guides(fill="none") +
+  ggtitle(paste0("Mean Tissue-Specific Gene Effect Z-Score of Top ", stats_top_n," Predicted Essential Genes")) +
+  labs(y="Mean Tissue-Specific Gene Effect Z-Score", x="Algorithm" ) +
+  stat_compare_means(method = "wilcox.test",ref.group = "badDriver", label = "p.signif", hide.ns = F) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggsave(paste0("results/CCLE_",network_choice,"/SL_partner_level_gene_effect",stats_top_n,".png"),width = 50, height = 20, units = "cm", dpi = 300)
+
+
+
+
+
+
+
+
