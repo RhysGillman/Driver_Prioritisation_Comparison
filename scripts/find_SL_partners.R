@@ -12,7 +12,7 @@ suppressPackageStartupMessages (library(biomaRt, quietly = T))
 
 # Handling input arguments
 option_list = list(
-  make_option(c("-m", "--max"), type="character", default=5, 
+  make_option(c("-m", "--max"), type="numeric", default=5, 
               help="Maximum number of SL-partners to find for each gene", metavar ="max"),
   make_option(c("-n", "--network"), type="character", default="STRINGv11", 
               help="network being used", metavar ="Network")
@@ -383,7 +383,7 @@ SL <- SL %>%
   group_by(gene1) %>%
   arrange(desc(final_score)) %>%
   mutate(rank=row_number()) %>%
-  filter(rank <= 5) %>%
+  filter(rank <= max_SL) %>%
   ungroup() %>%
   arrange(gene1, rank)
 
