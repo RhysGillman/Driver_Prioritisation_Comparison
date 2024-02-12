@@ -510,6 +510,9 @@ if(!file.exists("data/CCLE/corrected_cnv.csv") | !file.exists("data/CCLE/correct
 all_gold_standards <- read_csv("validation_data/all_gold_standards.csv")
 rare_gold_standards <- read_csv("validation_data/rare_gold_standards.csv")
 
+drug_sensitivity <- read_csv("validation_data/gold_standard_drug_sensitivities.csv")
+drug_targets <- read_csv("validation_data/inhibitory_drug_targets.csv")
+
 
 #########################
 # Filtering
@@ -603,6 +606,11 @@ CCLE_original_copy_number <- CCLE_original_copy_number[gene_list,]
 all_gold_standards <- all_gold_standards %>% filter(gene_ID %in% gene_list)
 rare_gold_standards <- rare_gold_standards %>% filter(gene_ID %in% gene_list)
 
+# Only keep drugs with targets in the gene list
+
+drug_targets <- drug_targets %>% filter(gene_ID %in% gene_list)
+drug_sensitivity <- drug_sensitivity %>% filter(drug_ID %in% drug_targets$drug_ID)
+
 #########################
 # Saving Data
 #########################
@@ -630,6 +638,9 @@ if(network_choice != "own"){
 
 write_csv(all_gold_standards, paste0(DATA_DIR,"/gold_standards.csv"))
 write_csv(rare_gold_standards, paste0(DATA_DIR,"/rare_gold_standards.csv"))
+write_csv(drug_targets, paste0(DATA_DIR,"/drug_targets.csv"))
+write_csv(drug_sensitivity, paste0(DATA_DIR,"/gold_standard_drug_sensitivity.csv"))
+
 write.table(CCLE_sample_info %>% dplyr::select(lineage) %>% arrange(lineage) %>% unique, 
             sep="\t", 
             col.names=FALSE, 
@@ -810,6 +821,19 @@ rare_gold_standards_summary <- rare_gold_standards %>%
   )
 
 write_csv(rare_gold_standards_summary, paste0(SUMMARY_DIR,"/rare_gold_standards_summary.csv"))
+
+
+drug_sensitivity_summary <- drug_sensitivity %>%  
+  group_by(lineage,cell_ID) %>%
+  summarise(all=length(which(global_sensitive)), rare=length(which(rare_sensitive))) %>%
+  ungroup() %>% group_by(lineage) %>%
+  summarise(mean_count_all_sensitivies=mean(all),
+            mean_count_rare_sensitivies=mean(rare))
+
+write_csv(drug_sensitivity_summary, paste0(SUMMARY_DIR,"/drug_sensitivities_summary.csv"))
+  
+  
+ 
 
 
 
