@@ -7,8 +7,8 @@ suppressPackageStartupMessages (library(tidyverse, quietly = T))
 suppressPackageStartupMessages (library(data.table, quietly = T))
 suppressPackageStartupMessages (library(jsonlite, quietly = T))
 suppressPackageStartupMessages (library(httr, quietly = T))
-suppressPackageStartupMessages (library(multidplyr, quietly = T))
-
+#suppressPackageStartupMessages (library(multidplyr, quietly = T))
+suppressPackageStartupMessages (library(readxl, quietly = T))
 
 # Handling input arguments
 option_list = list(
@@ -368,7 +368,9 @@ merged_annotations <- rbind(
   summarise(label=paste0(label, collapse = "")) %>%
   ungroup() %>%
   mutate(itan1_LOF=label %in% c("LOF","LOFGOF","GOFLOF"),itan1_GOF=label %in% c("GOF","LOFGOF","GOFLOF")) %>%
-  dplyr::select(-label)
+  dplyr::select(-label) %>%
+  mutate(itan1_LOF=as.numeric(itan1_LOF),
+         itan1_GOF=as.numeric(itan1_GOF))
 
 
 #####################################
@@ -379,36 +381,70 @@ CGC <- read_csv("data/cancer_reference_genes/CGC/cancer_gene_census.csv") %>%
   # Fixing ambiguous roles
   mutate(CGC_oncogene=str_detect(tolower(`Role in Cancer`),"onco")) %>%
   mutate(CGC_tsg=str_detect(tolower(`Role in Cancer`),"tsg|suppress")) %>%
+  # Tier 1 genes =1, tier 2 genes = 0.5
+  mutate(CGC_oncogene=as.numeric(CGC_oncogene)/Tier) %>%
+  mutate(CGC_tsg=as.numeric(CGC_tsg)/Tier) %>%
   dplyr::select(gene_ID = `Gene Symbol`,CGC_oncogene,CGC_tsg) %>%
   na.omit() %>%
   group_by(gene_ID) %>%
-  summarise(CGC_oncogene=as.logical(max(CGC_oncogene)),CGC_tsg=as.logical(max(CGC_tsg))) %>%
+  summarise(CGC_oncogene=as.numeric(max(CGC_oncogene)),CGC_tsg=as.numeric(max(CGC_tsg))) %>%
   ungroup()
 
 
 NCG <- read_tsv("data/cancer_reference_genes/NCG/NCG_cancerdrivers_annotation_supporting_evidence.tsv") %>%
-  mutate(NCG_oncogene=as.logical(NCG_oncogene), NCG_tsg=as.logical(NCG_tsg)) %>%
+  # Exclude CGC-only annotations
+  filter(!(!is.na(cgc_annotation) & is.na(vogelstein_annotation) & is.na(saito_annotation))) %>%
+  filter(NCG_oncogene==1 | NCG_tsg==1) %>%
+  #mutate(NCG_oncogene=as.logical(NCG_oncogene), NCG_tsg=as.logical(NCG_tsg)) %>%
   dplyr::select(gene_ID = symbol, NCG_oncogene, NCG_tsg) %>%
   na.omit() %>%
   group_by(gene_ID) %>%
-  summarise(NCG_oncogene=as.logical(max(NCG_oncogene)),NCG_tsg=as.logical(max(NCG_tsg))) %>%
+  summarise(NCG_oncogene=max(NCG_oncogene),NCG_tsg=max(NCG_tsg)) %>%
   ungroup()
 
 CancerMine <- read_tsv("data/cancer_reference_genes/CancerMine/cancermine_collated.tsv") %>%
-  # Filtering for >1 citation count as done in PersonaDrive
-  filter(citation_count >2) %>%
   filter(role%in%c("Oncogene","Tumor_Suppressor")) %>%
   dplyr::select(gene_ID=gene_normalized, role, citation_count) %>%
-  unique() %>%
+  # Sum citation counts
   group_by(gene_ID,role) %>%
   summarise(citation_count=sum(citation_count)) %>%
-  ungroup() %>% group_by(gene_ID) %>%
-  arrange(desc(citation_count)) %>%
-  filter(row_number()==1) %>%
-  mutate(CancerMine_oncogene=role=="Oncogene") %>%
-  mutate(CancerMine_tsg=role=="Tumor_Suppressor") %>%
-  dplyr::select(gene_ID,CancerMine_oncogene,CancerMine_tsg)
+  ungroup() %>% 
+  # re-scale values
+  mutate(score=(   (citation_count - min(citation_count)) / (max(citation_count) - min(citation_count)))) %>%
+  dplyr::select(-citation_count) %>%
+  pivot_wider(names_from = "role", values_from = "score") %>%
+  dplyr::rename(CancerMine_oncogene=Oncogene,CancerMine_tsg=Tumor_Suppressor )
   
+
+###############################
+# FASMIC
+################################
+# This data comes from the supplementary data from the following publication https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5926201/
+# I have identified the following conditions as indicative of cancer-driving LOF/GOF annotations based on the data descriptions in the publcation
+#WT=Positive, Mut=Activating  --> GOF
+#WT=Negative, Mut=Non-inhibitory --> LOF
+#WT=Negative, Mut=Activating --> GOF
+#WT=No Effect, Mut=Activating --> GOF
+
+FASMIC_WT <- read_xlsx("data/FASMIC/NIHMS940011-supplement-2.xlsx", sheet = "Wild-types", skip = 1) %>%
+  dplyr::select(gene_ID=Gene,wt_annotation=`Consensus annotation`)
+
+FASMIC_MUT <- read_xlsx("data/FASMIC/NIHMS940011-supplement-2.xlsx", sheet = "Mutations", skip=1) %>%
+  dplyr::select(gene_ID=Gene,aa_change=`AA change`,mut_annotation=`Consensus functional annotation`)
+
+FASMIC <- inner_join(FASMIC_WT,FASMIC_MUT, by=c("gene_ID")) %>%
+  # add "driver" annotations for mutations that enhance growth
+  mutate(FASMIC_GOF=ifelse(wt_annotation=="positive" & mut_annotation=="activating",1,0)) %>%
+  mutate(FASMIC_GOF=ifelse(wt_annotation=="negative" & mut_annotation=="activating",1,FASMIC_GOF)) %>%
+  mutate(FASMIC_GOF=ifelse(wt_annotation=="no effect" & mut_annotation=="activating",1,FASMIC_GOF)) %>%
+  mutate(FASMIC_LOF=ifelse(wt_annotation=="negative" & mut_annotation=="non-inhibitory",1,0)) %>%
+  # add "non-driver" annotations based on effect of overexpression of WT gene
+  mutate(FASMIC_GOF=ifelse(FASMIC_GOF==0 & wt_annotation=="positive", 0.5, FASMIC_GOF)) %>%
+  mutate(FASMIC_LOF=ifelse(FASMIC_LOF==0 & wt_annotation=="negative", 0.5, FASMIC_LOF))
+
+
+
+
 
 ###############################
 # Annotating CCLE Mutations
@@ -453,12 +489,12 @@ mutation <- mutation %>%
   mutate(Protein_Change=ifelse(tmp_del, paste0("p.",AtoAAA(substr(tmp_p1,1,1),AAs),tmp_del_pos1,"_",AtoAAA(substr(tmp_p1,nchar(tmp_p1),nchar(tmp_p1)),AAs),tmp_p2,"del"),Protein_Change)) %>%
   dplyr::select(-starts_with("tmp")) %>%
   # Getting LOF / GOF info from depmap annotations
-  mutate(associated_with_loss = str_detect(AssociatedWith, "loss"),
-         associated_with_gain = str_detect(AssociatedWith, "gain"),
-         DepMap_LikelyLoF = LikelyLoF=="Y",
-         DepMap_LikelyGoF = LikelyGoF=="Y",
-         itan2_LOF=score_LOF>score_GOF,
-         itan2_GOF=score_GOF>score_LOF
+  mutate(associated_with_loss = as.numeric(str_detect(AssociatedWith, "loss")),
+         associated_with_gain = as.numeric(str_detect(AssociatedWith, "gain")),
+         DepMap_LikelyLoF = as.numeric(LikelyLoF=="Y"),
+         DepMap_LikelyGoF = as.numeric(LikelyGoF=="Y"),
+         itan2_LOF=score_LOF,
+         itan2_GOF=score_GOF
          )
 # Annotating CCLE mutations with itan lab LOF/GOF annotations
 mutation <- mutation %>%
@@ -477,6 +513,76 @@ mutation <- mutation %>%
   left_join(CancerMine, by = "gene_ID", multiple = "all")
 
 
+# Annotating CCLE mutations with FASMIC annotations
+
+FASMIC <- FASMIC %>%
+  mutate(type=
+           ifelse(str_detect(aa_change,"delins"),
+                  "delins",
+                  ifelse(
+                    str_detect(aa_change,"del"),
+                    ifelse(str_detect(aa_change, "_"), "multidel","singledel"),
+                    ifelse(
+                      str_detect(aa_change,"ins"),
+                      "ins",
+                      ifelse(str_detect(aa_change,"fs"),
+                             "frameshift",
+                             "change")
+                    )))) %>%
+  rowwise() %>%
+  # Fix names for aa changes
+  mutate(Protein_Change = ifelse(type=="change",
+                                 paste0(
+                                   "p.",
+                                   AtoAAA(str_extract(aa_change,"^[A-Z]+"),AAs),
+                                   str_extract(aa_change,"^[A-Z]([0-9]+)"),
+                                   AtoAAA(str_extract(aa_change,"[A-Z]+$"),AAs)
+                                   ),
+                                 NA
+                                 )) %>%
+  # fix names for multi aa deletions
+  mutate(Protein_Change = ifelse(type=="multidel",
+                                 paste0(
+                                   "p.",
+                                   AtoAAA(str_extract(aa_change,"^[A-Z]+"),AAs),
+                                   str_extract(aa_change,"^[A-Z]([0-9]+)"),
+                                   "_",
+                                   AtoAAA(str_extract(aa_change,"(?<=_)[A-Z]"),AAs),
+                                   str_extract(aa_change,"(?<=_[A-Z])[0-9]+"),
+                                   "del"
+                                 ),
+                                 Protein_Change
+  )) %>%
+  # fix names for single aa deletions
+  mutate(Protein_Change = ifelse(type=="singledel",
+                                 paste0(
+                                   "p.",
+                                   AtoAAA(str_extract(aa_change,"^[A-Z]"),AAs),
+                                   str_extract(aa_change,"(?<=[A-Z])[0-9]+"),
+                                   "_",
+                                   AtoAAA(str_extract(aa_change,"^[A-Z]"),AAs),
+                                   str_extract(aa_change,"(?<=[A-Z])[0-9]+"),
+                                   "del"
+                                 ),
+                                 Protein_Change
+  )) %>%
+  # fix names for frameshift
+  mutate(Protein_Change = ifelse(type=="frameshift",
+                                 paste0(
+                                   "p.",
+                                   str_extract(aa_change,"^[A-Z][0-9]+"),
+                                   "fs"
+                                 ),
+                                 Protein_Change
+  
+  )) %>%
+  dplyr::select(gene_ID,Protein_Change,FASMIC_GOF,FASMIC_LOF)
+
+
+mutation <- mutation %>%
+  left_join(FASMIC, by=c("gene_ID","Protein_Change"), multiple = "all")
+
+
 
 # Adding up different sources of information
 
@@ -486,15 +592,15 @@ CancerMine_weight=1
 
 mutation <- mutation %>%
   # Gain of functin or Oncogene
-  mutate(GOF_total_score=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_oncogene*CancerMine_weight,NCG_oncogene*NCG_weight,CGC_oncogene*CGC_weight, na.rm = T)) %>%
+  mutate(GOF_total_score=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_oncogene*CancerMine_weight,NCG_oncogene*NCG_weight,CGC_oncogene*CGC_weight,FASMIC_GOF, na.rm = T)) %>%
   # Loss of function or TSG
-  mutate(LOF_total_score=sum(associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_tsg*CancerMine_weight,NCG_tsg*NCG_weight,CGC_tsg*CGC_weight, na.rm = T)) %>%
+  mutate(LOF_total_score=sum(associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_tsg*CancerMine_weight,NCG_tsg*NCG_weight,CGC_tsg*CGC_weight,FASMIC_LOF, na.rm = T)) %>%
   mutate(final_prediction=ifelse(GOF_total_score>LOF_total_score, "GOF", "LOF"))
 
 
 LOF_GOF_annotation_stats <- mutation %>%
-  mutate(annotation_available=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_oncogene,NCG_oncogene,CGC_oncogene,
-                                  associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_tsg,NCG_tsg,CGC_tsg, na.rm = T)) %>%
+  mutate(annotation_available=sum(associated_with_gain,DepMap_LikelyGoF,itan2_GOF,itan1_GOF,CancerMine_oncogene,NCG_oncogene,CGC_oncogene,FASMIC_GOF,
+                                  associated_with_loss,DepMap_LikelyLoF,itan2_LOF,itan1_LOF,CancerMine_tsg,NCG_tsg,CGC_tsg,FASMIC_LOF, na.rm = T)) %>%
   mutate(annotation_available=annotation_available!=0)
 
 
@@ -601,9 +707,9 @@ all_annotations %>% group_by(combined_prediction) %>% summarise(n())
 
 #combined_prediction   `n()`
 #<chr>                 <int>
-# 1 GOF                  610742
-#2 LOF                 1457692
-#3 both                   9501
+#1 GOF         555236
+#2 LOF        1283672
+#3 both         30989
 
 write_csv(all_annotations,"data/LOF_GOF_annotations_all_evidence.csv")
 
@@ -626,9 +732,9 @@ LOF_GOF_annotations <- all_annotations %>%
 
 #annotation   count
 #<chr>        <int>
-#1 GOF         555236
-#2 LOF        1283672
-#3 both         30989
+#1 GOF         545939
+#2 LOF        1288578
+#3 both         35380
 
 summary <- LOF_GOF_annotations %>% group_by(annotation) %>% summarise(count=n())
 
