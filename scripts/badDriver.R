@@ -19,8 +19,9 @@ option_list = list(
   make_option(c("-r", "--refdrivers"), type="character", default="none", 
               help="reference driver set to prioritise. Leave as NULL (default) to not prioritise a reference set", metavar ="Reference Driver Set"),
   make_option(c("-s", "--simnumber"), type="integer", default=10, 
-              help="the number of simulations to run", metavar ="Simulation Number")
-  
+              help="the number of simulations to run", metavar ="Simulation Number"),
+  make_option(c("-m", "--mode"), type="character", default="both", 
+              help="Mode (options: driver, drug, both (Default))", metavar ="Mode")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -31,6 +32,7 @@ cell_type <- opt$celltype
 threads <- opt$threads
 use_ref_drivers <- opt$refdrivers
 n_sims <- opt$simnumber
+mode <- opt$mode
 
 if(threads>1){
   #registerDoParallel(cores=threads)
@@ -38,12 +40,50 @@ if(threads>1){
   registerDoParallel(cl)
 }
 
+#mode="drug"
+#cell_type="all"
+
+
+
+if(cell_type=="all"){
+  cell_types <- read_csv(paste0("validation_data/CCLE_",network_choice,"/sample_info.csv")) %>% pull(lineage) %>% unique()
+}else{
+  cell_types <- cell_type
+}
+
+
+
+
+for(cell_type in cell_types){
+  
+
+
+
 #############################
 # Sample Info
 #############################
 
 sample_info <- read_csv(paste0("validation_data/CCLE_",network_choice,"/sample_info.csv")) %>% filter(lineage==cell_type)
 samples <- sample_info$cell_ID %>% sort()
+
+
+#############################
+# Create Directories
+#############################
+
+if(!dir.exists(paste0("bad_driver_simulations/CCLE_",network_choice,"/",cell_type))){
+  dir.create(paste0("bad_driver_simulations/CCLE_",network_choice,"/",cell_type), recursive = T)
+}
+
+if(!dir.exists(paste0("bad_driver_simulations/CCLE_",network_choice,"_drugs/",cell_type))){
+  dir.create(paste0("bad_driver_simulations/CCLE_",network_choice,"_drugs/",cell_type), recursive = T)
+}
+
+
+
+
+if(mode %in% c("both","driver")){
+  
 
 #############################
 # Mutation Data
@@ -88,13 +128,6 @@ if(!use_ref_drivers=="none"){
 }
 
 
-#############################
-# Create Directories
-#############################
-
-if(!dir.exists(paste0("bad_driver_simulations/CCLE_",network_choice,"/",cell_type))){
-  dir.create(paste0("bad_driver_simulations/CCLE_",network_choice,"/",cell_type), recursive = T)
-}
 
 
 #############################
@@ -134,6 +167,54 @@ for(i in 1:n_sims){
   
 }
 
+}
+
+
+if(mode %in% c("both","drug")){
+  
+
+
+#############################
+# Drug Sensitivity Prediction
+#############################
+
+#############################
+## Get Available Drugs
+#############################
+
+
+all_drugs <- read_csv("validation_data/drug_sensitivity.csv") %>%
+  dplyr::select(cell_ID,drug_ID) %>%
+  unique() %>%
+  filter(cell_ID %in% samples) %>%
+  group_by(cell_ID) %>%
+  summarise(drugs = list(drug_ID)) %>%
+  deframe()
+
+#############################
+## BadDrug Prediction
+#############################
 
 
 
+for(i in 1:n_sims){
+  
+  bad_drugs <- foreach(sample=samples[samples %in% names(all_drugs)], .combine = "rbind", .packages = c("tidyverse","foreach")) %dopar% {
+    
+    sample_drugs <- all_drugs[[sample]] %>%
+      sample(replace=F)
+    
+    data.frame(lineage = cell_type,cell_ID = sample, drug_ID = sample_drugs) %>% mutate(rank = row_number())
+    
+    
+  }
+  
+  
+  write_csv(bad_drugs, paste0("bad_driver_simulations/CCLE_",network_choice,"_drugs/",cell_type,"/bad_drug_",i,".csv"))
+  
+}
+
+
+}
+
+}
