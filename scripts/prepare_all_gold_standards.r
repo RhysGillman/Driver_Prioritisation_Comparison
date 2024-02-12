@@ -10,6 +10,7 @@ suppressPackageStartupMessages (library(optparse, quietly = T))
 suppressPackageStartupMessages (library(tidyverse, quietly = T))
 suppressPackageStartupMessages (library(readxl, quietly = T))
 suppressPackageStartupMessages (library(data.table, quietly = T))
+suppressPackageStartupMessages (library(foreach, quietly = T))
 
 # Handling input arguments
 option_list = list(
@@ -27,6 +28,18 @@ opt = parse_args(opt_parser);
 local_alpha <- opt$local_alpha
 global_alpha <- opt$global_alpha
 method <- opt$method
+
+
+
+
+drug_sensitivity_th <- -2
+
+global_essentiality_freq_thresh <- 0.5
+lineage_essentiality_freq_thresh <- 0.25
+
+
+
+
 
 #############################
 # Functions
@@ -468,6 +481,12 @@ write_csv(gene_effect_z_scores, "validation_data/gene_effect_z_scores.csv")
 
 
 
+
+
+
+
+
+
 #############################
 # Summary Info
 #############################
@@ -514,9 +533,91 @@ write_csv(summary,"validation_data/summary_all_gold_standards.csv")
 
 
 if(method=="picklesv3"){
+
+  
+  ## Gene Effect Z-Scores
+  
+  gene_effect <- fread("data/CCLE/CRISPRGeneEffect.csv") %>%
+    as.data.frame() %>%
+    dplyr::rename(DepMap_ID=V1) %>%
+    inner_join(CCLE_sample_info[c("DepMap_ID","cell_ID")], by = "DepMap_ID") %>%
+    dplyr::select(-DepMap_ID) %>%
+    column_to_rownames("cell_ID")
+  
+  colnames(gene_effect) <- gsub(" \\(.*","", colnames(gene_effect))
+  gene_effect <- gene_effect[!duplicated(colnames(gene_effect))]
+  gene_effect <- gene_effect[colnames(gene_effect) %in% genes]
+  
+  gene_effect_global_z_scores <- get_z_scores(gene_effect) %>%
+    as.data.frame() %>%
+    rownames_to_column("cell_ID") %>%
+    pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "global_z_score")
+  
+  
+  gene_effect_local_z_scores <- foreach(lin=sort(unique(CCLE_sample_info$lineage)), .combine = "rbind") %do% {
+    message(paste0("Calculating local gene effect z-scores for ", lin, " cells"))
+    lineage_cells <- CCLE_sample_info %>% filter(lineage==lin) %>% pull(cell_ID)
+    lin_gene_effect_matrix <- gene_effect[lineage_cells,]
+    indiv_gene_effect_local_z_scores <- get_z_scores(lin_gene_effect_matrix) %>%
+      as.data.frame() %>%
+      rownames_to_column("cell_ID") %>%
+      pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "local_z_score") %>%
+      mutate(lineage = lin)
+  }
+  
+  
+  gene_effect_z_scores <- full_join(gene_effect_global_z_scores,gene_effect_local_z_scores, by = c("cell_ID","gene_ID")) %>%
+    full_join(gene_effect %>% 
+                rownames_to_column("cell_ID") %>%
+                pivot_longer(cols = -cell_ID, names_to = "gene_ID", values_to = "gene_effect"),
+              by = c("cell_ID","gene_ID")) %>%
+    dplyr::select(lineage,cell_ID,gene_ID,gene_effect,global_z_score,local_z_score)
+  
+  
+  ## Weighted average of z-scores
+  # https://stats.stackexchange.com/questions/348192/combining-z-scores-by-weighted-average-sanity-check-please
+  
+  # weights
+  w_global <- 0.2
+  W_local <- 0.8
+  
+  # Add Weighted average
+  gene_effect_z_scores <- gene_effect_z_scores %>%
+    mutate(weighted_average = 
+             
+             (w_global/(w_global + W_local)*global_z_score) + (W_local/(W_local + w_global)*local_z_score)
+           
+           )
+  
+  
+  #ggplot(gene_effect_z_scores, aes(x=weighted_average)) +
+  #  geom_density()
+  
+  
+  # Get the variance of the weighted averages
+  w_var <- var(gene_effect_z_scores$weighted_average, na.rm = T)
+  
+  # Correct weighted average by diving by varaince
+  
+  
+  gene_effect_z_scores <- gene_effect_z_scores %>%
+    mutate(weighted_average = weighted_average/w_var)
+  
+  #ggplot(gene_effect_z_scores, aes(x=weighted_average)) +
+  #  geom_density()
+  
+  
+  
+  write_csv(gene_effect_z_scores,"validation_data/gene_effect_z_scores.csv")
+  
   
 
-
+    
+    
+  
+  
+  
+  
 
 ###################
 # PICKLES v3
@@ -583,8 +684,7 @@ picklesv3_all_gold_standards %>% group_by(cell_ID) %>% summarise(count = n()) %>
 z_th <- -3
 BF_th <- 8
 chronos_th <- -0.5
-global_essentiality_freq_thresh <- 0.5
-lineage_essentiality_freq_thresh <- 0.25
+
 
 # Essentiality frequency
 
@@ -642,3 +742,402 @@ write_csv(picklesv3_rare_gold_standards, "validation_data/rare_gold_standards.cs
 picklesv3_rare_gold_standards %>% group_by(cell_ID) %>% summarise(count = n()) %>% pull(count) %>% mean()
 
 }
+
+
+
+
+##########################
+# Drug Gold Standard Data
+##########################
+
+# Because drug names are very inconsistent between databases, using pubchem idexchange
+
+dir.create("data/drug_ids")
+
+GDSC1_ids <- read_xlsx("data/GDSC/GDSC1_fitted_dose_response_27Oct23.xlsx") %>%
+  dplyr::select(DRUG_NAME) %>%
+  unique()
+
+write_tsv(GDSC1_ids, col_names = F, "data/drug_ids/GDSC1.tsv")
+
+GDSC2_ids <- read_xlsx("data/GDSC/GDSC2_fitted_dose_response_27Oct23.xlsx") %>%
+  dplyr::select(DRUG_NAME) %>%
+  unique()
+
+write_tsv(GDSC2_ids, col_names = F, "data/drug_ids/GDSC2.tsv")
+
+PRISM_ids <- fread("data/CCLE/Repurposing_Public_23Q2_LFC_COLLAPSED.csv") %>%
+  dplyr::select(broad_id) %>%
+  unique()
+
+write_tsv(PRISM_ids, col_names = F, "data/drug_ids/PRISM.tsv")
+
+DGIdb_ids <- fread("data/DGIdb/dec-2023-interactions.csv") %>%
+  #filter(interaction_type %in% c(
+  #   "antibody", "antisense oligonucleotide", "blocker", "cleavage", "inhibitor", "inverse agonist", "negative modulator"
+  #  )) %>%
+  mutate(drug_name = ifelse(drug_name=="NULL", drug_claim_name, drug_name)) %>% 
+  dplyr::select(drug_name) %>%
+  unique()
+
+write_tsv(DGIdb_ids, col_names = F, "data/drug_ids/DGIdb.tsv")
+
+# The above files were enterd into the idexchange server to retrieve all possible synonyms
+
+
+# In addition, provided synonyms by GDSC were retrieved below
+provided_GDSC_drug_synonyms <- read.csv("data/GDSC/screened_compounds_rel_8.5.csv") %>%
+  dplyr::select(original_name=DRUG_NAME, SYNONYMS) %>%
+  # Remove spaces and punctuation from synonym names and replace missing with NA
+  mutate(SYNONYMS=str_remove_all(SYNONYMS," ")) %>%
+  mutate(SYNONYMS=ifelse(SYNONYMS=="",NA,SYNONYMS)) %>%
+  separate_longer_delim(SYNONYMS, delim = ",") %>%
+  mutate(synonym = toupper(gsub("[[:punct:], ]", "", SYNONYMS))) %>%
+  mutate(synonym = ifelse(original_name==synonym, NA, synonym)) %>%
+  unique() %>%
+  # Remove NA synonyms if there is > 1 synonym available
+  group_by(original_name) %>%
+  mutate(n_names=n()) %>%
+  ungroup() %>%
+  filter(!(is.na(synonym) & n_names > 1)) %>%
+  dplyr::select(original_name,synonym)
+
+provided_PRISM_drug_synonyms <- fread("data/CCLE/Repurposing_Public_23Q2_Extended_Primary_Compound_List.csv") %>%
+  separate(col = IDs,sep = ":", into = c("ID1","ID2")) %>%
+  dplyr::select(original_name=ID2, synonym=Drug.Name) %>%
+  mutate(synonym = toupper(gsub("[[:punct:], ]", "", synonym))) %>%
+  unique()
+
+# GDSC1
+## Reading in pubmed idexchange synonyms
+GDSC1_syn <- fread("data/drug_ids/GDSC1_pubchem_idexchange_synonyms.txt", col.names = c('original_name','synonym'))
+  ## Adding provided synonyms
+GDSC1_syn <- GDSC1_syn %>% rbind(provided_GDSC_drug_synonyms %>% filter(original_name %in% GDSC1_syn$original_name)) %>% unique()
+
+# GDSC2
+## Reading in pubmed idexchange synonyms
+GDSC2_syn <- fread("data/drug_ids/GDSC2_pubchem_idexchange_synonyms.txt", col.names = c('original_name','synonym'))
+## Adding provided synonyms
+GDSC2_syn <- GDSC2_syn %>% rbind(provided_GDSC_drug_synonyms %>% filter(original_name %in% GDSC2_syn$original_name)) %>% unique()
+
+PRISM_syn <- fread("data/drug_ids/PRISM_pubchem_idexchange_synonyms.txt", col.names = c('original_name','synonym'))
+## Adding provided synonyms
+PRISM_syn <- PRISM_syn %>% rbind(provided_PRISM_drug_synonyms %>% filter(original_name %in% PRISM_syn$original_name)) %>% unique()
+
+DGIdb_syn <- fread("data/drug_ids/DGIdb_pubchem_idexchange_synonyms.txt", col.names = c('original_name','synonym')) %>%
+  # Adding provided synonyms
+  rbind(fread("data/DGIdb/dec-2023-interactions.csv") %>% dplyr::select(original_name=drug_name,synonym=drug_claim_name) %>% unique())
+
+# Add original names to synonyms
+GDSC1_syn <- GDSC1_syn %>%
+  rbind(GDSC1_syn %>% dplyr::select(original_name) %>% mutate(synonym=original_name) %>% unique()) %>%
+  filter(synonym != "") %>%
+  mutate(synonym = toupper(gsub("[[:punct:], ]", "", synonym))) %>%
+  unique() %>%
+  dplyr::rename(GDSC1_original=original_name,GDSC1_synonym=synonym)
+GDSC2_syn <- GDSC2_syn %>%
+  rbind(GDSC2_syn %>% dplyr::select(original_name) %>% mutate(synonym=original_name) %>% unique()) %>%
+  filter(synonym != "") %>%
+  mutate(synonym = toupper(gsub("[[:punct:], ]", "", synonym))) %>%
+  unique() %>%
+  dplyr::rename(GDSC2_original=original_name,GDSC2_synonym=synonym)
+PRISM_syn <- PRISM_syn %>%
+  rbind(PRISM_syn %>% dplyr::select(original_name) %>% mutate(synonym=original_name) %>% unique()) %>%
+  filter(synonym != "") %>%
+  unique() %>%
+  dplyr::rename(PRISM_original=original_name,PRISM_synonym=synonym)
+DGIdb_syn <- DGIdb_syn %>%
+  rbind(DGIdb_syn %>% dplyr::select(original_name) %>% mutate(synonym=original_name) %>% unique()) %>%
+  filter(synonym != "") %>%
+  mutate(synonym = toupper(gsub("[[:punct:], ]", "", synonym))) %>%
+  unique() %>%
+  dplyr::rename(DGIdb_original=original_name,DGIdb_synonym=synonym)
+
+#GDSC1 228 match 150 missing
+matched_ids <- GDSC1_syn %>%
+  left_join(DGIdb_syn, by = c("GDSC1_synonym"="DGIdb_synonym")) %>%
+  arrange(GDSC1_original)
+
+GDSC1_missing <- matched_ids %>% group_by(GDSC1_original) %>% filter(all(is.na(DGIdb_original))) %>% dplyr::select(-DGIdb_original)
+write_csv(GDSC1_missing, "data/drug_ids/GDSC1_missing_annotations.csv")
+
+
+# GDSC2 171 match 115 missing, 98 unique to GDSC2
+matched_ids <- GDSC2_syn %>%
+  left_join(DGIdb_syn, by = c("GDSC2_synonym"="DGIdb_synonym")) %>%
+  arrange(GDSC2_original)
+
+GDSC2_missing <- matched_ids %>% group_by(GDSC2_original) %>% filter(all(is.na(DGIdb_original))) %>% dplyr::select(-DGIdb_original) %>%
+  # Remove drugs already searched for GDSC1
+  filter(!GDSC2_original %in% GDSC1_missing$GDSC1_original)
+write_csv(GDSC2_missing, "data/drug_ids/GDSC2_missing_annotations.csv")
+
+# PRISM 632 match 646 missing
+matched_ids <- PRISM_syn %>%
+  left_join(DGIdb_syn, by = c("PRISM_synonym"="DGIdb_synonym")) %>%
+  arrange(PRISM_original)
+
+PRISM_missing <- matched_ids %>% group_by(PRISM_original) %>% filter(all(is.na(DGIdb_original))) %>% dplyr::select(-DGIdb_original) %>%
+  # Remove drugs already searched for GDSC1 and GDSC2
+  filter(!PRISM_original %in% c(GDSC1_missing$GDSC1_original, GDSC2_missing$GDSC2_original))
+write_csv(PRISM_missing, "data/drug_ids/PRISM_missing_annotations.csv")
+
+
+
+#matched_ids %>% dplyr::select(PRISM_original,DGIdb_original) %>% arrange(DGIdb_original) %>% filter(!duplicated(PRISM_original)) %>%
+#  group_by(!is.na(DGIdb_original)) %>% summarise(n())
+
+
+
+GDSC1_manual_annotations <- read_xlsx("data/drug_ids/GDSC1_manual_annotations.xlsx")
+GDSC2_manual_annotations <- read_xlsx("data/drug_ids/GDSC2_manual_annotations.xlsx")
+PRISM_manual_annotations <- read_xlsx("data/drug_ids/PRISM_manual_annotations.xlsx")
+
+
+
+
+
+DGIdb_interactions <- fread("data/DGIdb/dec-2023-interactions.csv") %>% as.data.frame()
+#interaction_type          count
+#NULL                      62020
+#activator                   139
+#agonist                    1452
+#antibody                     84  *
+#antisense oligonucleotide     4  *
+#binder                      259
+#blocker                    1150  *
+#cleavage                     82  *
+#immunotherapy                11
+#inhibitor                 13789  *
+#inverse agonist              36  *
+#modulator                   609
+#negative modulator          142  *
+#other/unknown               219
+#positive modulator         1039
+#potentiator                  51
+#vaccine                      43
+
+
+DGIdb_interactions <- DGIdb_interactions %>%
+  filter(interaction_type %in% c(
+    "antibody", "antisense oligonucleotide", "blocker", "cleavage", "inhibitor", "inverse agonist", "negative modulator"
+  )) %>%
+  # Fix drug names
+  mutate(drug_name = ifelse(drug_name=="NULL", drug_claim_name, drug_name)) %>%
+  pivot_longer(cols = c(drug_name,drug_claim_name), names_to = "origin", values_to = "drug_name") %>%
+  mutate(drug_name = toupper(gsub("[[:punct:], ]", "", drug_name))) %>%
+  dplyr::select(-origin) %>%
+  unique() %>%
+  # Fix gene names
+  mutate(gene_name=ifelse(gene_name=="NULL", gene_claim_name, gene_name))  %>%
+  dplyr::select(gene_name, drug_name, interaction_score, interaction_type,drug_concept_id,approved,immunotherapy,anti_neoplastic)
+
+
+
+
+# Merging with annotations
+
+GDSC1_drug_targets <- GDSC1_syn %>%
+  left_join(DGIdb_interactions, by = c("GDSC1_synonym"="drug_name")) %>%
+  dplyr::select(GDSC1_original,DGIdb_gene=gene_name,DGIdb_type=interaction_type,interaction_score) %>%
+  unique() %>%
+  left_join(GDSC1_manual_annotations %>% dplyr::select(original_name,manual_type=type,manual_gene=targets_hgnc), by = c("GDSC1_original"="original_name")) %>%
+  separate_longer_delim(cols = manual_gene, delim = ";") %>%
+  pivot_longer(c(DGIdb_gene,manual_gene),names_to = "source", values_to = "gene_ID") %>%
+  mutate(source=gsub("_.+$","",source)) %>%
+  pivot_longer(c(DGIdb_type,manual_type),names_to = "type_source", values_to = "type") %>%
+  mutate(type_source=gsub("_.+$","",source)) %>%
+  dplyr::select(GDSC1_original,gene_ID,type,source) %>%
+  unique() %>%
+  na.omit()
+
+
+GDSC2_drug_targets <- GDSC2_syn %>%
+  left_join(DGIdb_interactions, by = c("GDSC2_synonym"="drug_name")) %>%
+  dplyr::select(GDSC2_original,DGIdb_gene=gene_name,DGIdb_type=interaction_type,interaction_score) %>%
+  unique() %>%
+  left_join(GDSC2_manual_annotations %>% dplyr::select(original_name,manual_type=type,manual_gene=targets_hgnc), by = c("GDSC2_original"="original_name")) %>%
+  separate_longer_delim(cols = manual_gene, delim = ";") %>%
+  pivot_longer(c(DGIdb_gene,manual_gene),names_to = "source", values_to = "gene_ID") %>%
+  mutate(source=gsub("_.+$","",source)) %>%
+  pivot_longer(c(DGIdb_type,manual_type),names_to = "type_source", values_to = "type") %>%
+  mutate(type_source=gsub("_.+$","",source)) %>%
+  dplyr::select(GDSC2_original,gene_ID,type,source) %>%
+  unique() %>%
+  na.omit()
+
+PRISM_drug_targets <- PRISM_syn %>%
+  left_join(DGIdb_interactions, by = c("PRISM_synonym"="drug_name")) %>%
+  dplyr::select(PRISM_original,DGIdb_gene=gene_name,DGIdb_type=interaction_type,interaction_score) %>%
+  unique() %>%
+  left_join(PRISM_manual_annotations %>% dplyr::select(original_name,manual_type=type,manual_gene=targets_hgnc), by = c("PRISM_original"="original_name")) %>%
+  separate_longer_delim(cols = manual_gene, delim = ";") %>%
+  pivot_longer(c(DGIdb_gene,manual_gene),names_to = "source", values_to = "gene_ID") %>%
+  mutate(source=gsub("_.+$","",source)) %>%
+  pivot_longer(c(DGIdb_type,manual_type),names_to = "type_source", values_to = "type") %>%
+  mutate(type_source=gsub("_.+$","",source)) %>%
+  dplyr::select(PRISM_original,gene_ID,type,source) %>%
+  unique() %>%
+  na.omit()
+
+
+
+# GDSC Release 8.5
+
+
+# Getting GDSC versions of cell_IDs
+#GDSC_IDs <- read_xlsx("data/GDSC/Cell_Lines_Details.xlsx",sheet = "Cell line details") %>%
+#  dplyr::select(GDSC_ID = `Sample Name`, COSMIC_ID = `COSMIC identifier`) %>%
+#  mutate(cell_ID = toupper(gsub("[[:punct:], ]", "", GDSC_ID)))
+
+# Getting all possible synonyms of each drug and choosing a primary name to map all synonyms back to
+
+
+# GDSC Drug Sensitivity Data
+## Values are lnIC50, lower values = stronger effect
+## GDSC1 
+GDSC1 <- read_xlsx("data/GDSC/GDSC1_fitted_dose_response_27Oct23.xlsx") %>%
+  dplyr::select(cell_ID=CELL_LINE_NAME,drug_ID=DRUG_NAME, ln_ic50=LN_IC50) %>%
+  filter(drug_ID %in% GDSC1_drug_targets$GDSC1_original) %>%
+  mutate(cell_ID = toupper(gsub("[[:punct:], ]", "", cell_ID))) %>%
+  left_join(CCLE_sample_info %>% dplyr::select(cell_ID,lineage), by = "cell_ID") %>%
+  dplyr::relocate(cell_ID) %>%
+  na.omit() %>%
+  unique() %>%
+  group_by(lineage,cell_ID,drug_ID) %>%
+  summarise(ln_ic50=mean(ln_ic50)) %>%
+  ungroup()
+
+# Get z scores
+
+GDSC1_z <- GDSC1 %>%
+  dplyr::select(drug_ID,cell_ID,ln_ic50) %>%
+  pivot_wider(names_from = drug_ID, values_from = ln_ic50) %>%
+  column_to_rownames("cell_ID") %>%
+  get_z_scores() %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "global_z")
+
+GDSC1 <- GDSC1 %>%
+  left_join(GDSC1_z, by = c("cell_ID","drug_ID"))
+
+
+## GDSC2
+GDSC2 <- read_xlsx("data/GDSC/GDSC2_fitted_dose_response_27Oct23.xlsx") %>%
+  dplyr::select(cell_ID=CELL_LINE_NAME,drug_ID=DRUG_NAME, ln_ic50=LN_IC50) %>%
+  filter(drug_ID %in% GDSC2_drug_targets$GDSC2_original) %>%
+  mutate(cell_ID = toupper(gsub("[[:punct:], ]", "", cell_ID))) %>%
+  left_join(CCLE_sample_info %>% dplyr::select(cell_ID,lineage), by = "cell_ID") %>%
+  dplyr::relocate(cell_ID) %>%
+  na.omit() %>%
+  unique() %>%
+  group_by(lineage,cell_ID,drug_ID) %>%
+  summarise(ln_ic50=mean(ln_ic50)) %>%
+  ungroup()
+
+# Get z scores
+
+GDSC2_z <- GDSC2 %>%
+  dplyr::select(drug_ID,cell_ID,ln_ic50) %>%
+  pivot_wider(names_from = drug_ID, values_from = ln_ic50) %>%
+  column_to_rownames("cell_ID") %>%
+  get_z_scores() %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "global_z")
+
+GDSC2 <- GDSC2 %>%
+  left_join(GDSC2_z, by = c("cell_ID","drug_ID"))
+
+
+
+# PRISM Data
+## Values are median log2-fold-change viability of cells relative to controls. Lower values = stronger effect
+
+PRISM <- fread("data/CCLE/Repurposing_Public_23Q2_LFC_COLLAPSED.csv") %>%
+  separate(col = row_id,sep = "::", into = c("ID1","ID2","ID3","ID4")) %>%
+  dplyr::select(DepMap_ID=ID1,drug_ID=broad_id,screen,LFC) %>%
+  inner_join(CCLE_sample_info %>% dplyr::select(cell_ID,DepMap_ID,lineage), by = "DepMap_ID") %>%
+  dplyr::select(cell_ID,drug_ID,LFC,lineage) %>%
+  filter(drug_ID %in% PRISM_drug_targets$PRISM_original) %>%
+  na.omit() %>%
+  unique() %>%
+  group_by(lineage,cell_ID,drug_ID) %>%
+  summarise(LFC=mean(LFC)) %>%
+  ungroup()
+
+
+PRISM_z <- PRISM %>%
+  dplyr::select(drug_ID,cell_ID,LFC) %>%
+  
+  pivot_wider(names_from = drug_ID, values_from = LFC) %>%
+  column_to_rownames("cell_ID") %>%
+  get_z_scores() %>%
+  as.data.frame() %>%
+  rownames_to_column("cell_ID") %>%
+  pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "global_z")
+
+PRISM <- PRISM %>%
+  left_join(PRISM_z, by = c("cell_ID","drug_ID"))
+
+
+
+
+drug_sensitivities <- rbind(
+  GDSC1 %>% mutate(sensitivity_source = "GDSC1") %>% rename(sensitivity_value=ln_ic50),
+  GDSC2 %>% mutate(sensitivity_source = "GDSC2") %>% rename(sensitivity_value=ln_ic50),
+  PRISM %>% mutate(sensitivity_source = "PRISM") %>% rename(sensitivity_value=LFC)
+)
+
+write_csv(drug_sensitivities, "validation_data/drug_sensitivity.csv")
+
+drug_sensitivity_th <- -1
+
+
+drug_sensitivities <- drug_sensitivities %>%
+  mutate(global_sensitive = global_z < drug_sensitivity_th) %>%
+  filter(global_sensitive) %>%
+  # Get the total # of cells
+  mutate(total_n = length(unique(cell_ID))) %>%
+  # Get the global frequency of sensitivity
+  group_by(drug_ID) %>% mutate(global_sensitivity_count = length(unique(cell_ID))) %>% ungroup() %>%
+  # Get the total # of cells per lineage
+  group_by(lineage) %>% mutate(lineage_n = length(unique(cell_ID))) %>% ungroup() %>%
+  # Get the lineage frequency of essentiality
+  group_by(drug_ID,lineage) %>% mutate(lineage_sensitivity_count = length(unique(cell_ID))) %>% ungroup() %>%
+  mutate(global_sensitivity_frequency = global_sensitivity_count / total_n,
+         lineage_sensitivity_frequency = lineage_sensitivity_count / lineage_n) %>%
+  # Filter frequency thresholds
+  mutate(rare_sensitive = global_sensitivity_frequency < global_essentiality_freq_thresh & lineage_sensitivity_frequency < lineage_essentiality_freq_thresh) %>%
+  dplyr::select(lineage, cell_ID, drug_ID,sensitivity_source, global_sensitive,rare_sensitive)
+
+
+test <- drug_sensitivities %>% 
+  filter(rare_sensitive) %>% 
+  group_by(lineage,cell_ID) %>% summarise(count=n())
+mean(test$count)
+
+write_csv(drug_sensitivities,"validation_data/gold_standard_drug_sensitivities.csv")
+
+
+all_drug_targets <- rbind(
+  GDSC1_drug_targets %>% rename(drug_ID=GDSC1_original, annotation_source=source) %>%  mutate(source="GDSC1"),
+  GDSC2_drug_targets %>% rename(drug_ID=GDSC2_original, annotation_source=source) %>%  mutate(source="GDSC2"),
+  PRISM_drug_targets %>% rename(drug_ID=PRISM_original, annotation_source=source) %>%  mutate(source="PRISM")
+)
+
+
+write_csv(all_drug_targets,"validation_data/inhibitory_drug_targets.csv")
+
+
+sensitivity_summary <- drug_sensitivities %>% 
+  group_by(cell_ID,global_sensitive,rare_sensitive) %>% 
+  summarise(count=n()) %>%
+  ungroup() %>% 
+  group_by(global_sensitive) %>% 
+  summarise(mean(count))
+
+
+
+
