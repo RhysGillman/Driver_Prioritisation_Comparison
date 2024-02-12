@@ -209,7 +209,7 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         # Start time
         start=$(date +%s.%N)
-        Rscript --vanilla "scripts/run_DawnRank.R" -n $network_choice -c $cell_type > log/DawnRank_$cell_type.log &
+        Rscript --vanilla "scripts/run_DawnRank.R" -n $network_choice -c $cell_type > log/DawnRank_${network_choice}_${cell_type}.log &
         # Get the process ID (PID) of the  script
         pid=$!
         max_mem=$( memory_usage $pid )
@@ -226,8 +226,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Save log information to a file
-        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/DawnRank_${cell_type}_stats.txt
-        echo -e "$runtime\t$max_mem" >> log/DawnRank_${cell_type}_stats.txt
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/DawnRank_${network_choice}_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/DawnRank_${network_choice}_${cell_type}_stats.txt
         
         
     fi
@@ -244,7 +244,7 @@ for cell_type in ${cell_types[@]}; do
         
         # Start time
         start=$(date +%s.%N)
-        Rscript --vanilla "scripts/run_PRODIGY.R" -n $network_choice -c $cell_type -t $threads > log/PRODIGY_$cell_type.log &
+        Rscript --vanilla "scripts/run_PRODIGY.R" -n $network_choice -c $cell_type -t $threads > log/PRODIGY_${network_choice}_${cell_type}.log &
         # Get the process ID (PID) of the  script
         pid=$!
         max_mem=$( memory_usage $pid )
@@ -260,8 +260,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Save log information to a file
-        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/PRODIGY_${cell_type}_stats.txt
-        echo -e "$runtime\t$max_mem" >> log/PRODIGY_${cell_type}_stats.txt
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/PRODIGY_${network_choice}_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/PRODIGY_${network_choice}_${cell_type}_stats.txt
     fi
     
     ############################################################
@@ -279,7 +279,7 @@ for cell_type in ${cell_types[@]}; do
         # Start time
         start=$(date +%s.%N)
         ####### Running OncoImpact ########
-        perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_${cell_type}_OncoImpact_config.cfg &> log/OncoImpact_${cell_type}_${network_choice}.log & 
+        perl scripts/OncoImpact/oncoIMPACT.pl tmp/tmp_${cell_type}_OncoImpact_config.cfg &> log/OncoImpact_${network_choice}_${cell_type}.log & 
 
         # Get the process ID (PID) of the  script
         pid=$!
@@ -298,8 +298,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Save log information to a file
-        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/OncoImpact_${cell_type}_${network_choice}_stats.txt
-        echo -e "$runtime\t$max_mem" >> log/OncoImpact_${cell_type}_${network_choice}_stats.txt
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > log/OncoImpact_${network_choice}_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/OncoImpact_${network_choice}_${cell_type}_stats.txt
   
         # Formatting results
         Rscript --vanilla "scripts/format_OncoImpact_results.R" -n $network_choice -c $cell_type
@@ -330,7 +330,7 @@ for cell_type in ${cell_types[@]}; do
         # Start time
         start=$(date +%s.%N)
 
-        python3 scripts/PersonaDrive/constructing_PBNs.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_$cell_type.log &
+        python3 scripts/PersonaDrive/constructing_PBNs.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_${network_choice}_${cell_type}.log &
     
         # Get the process ID (PID) of the  script
         pid=$!
@@ -338,7 +338,7 @@ for cell_type in ${cell_types[@]}; do
         wait $pid
 
         echo "2 - Rank Mutated Genes ..." >> log/PersonaDrive_$cell_type.log
-        python3 scripts/PersonaDrive/PersonaDrive.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_$cell_type.log &
+        python3 scripts/PersonaDrive/PersonaDrive.py -o "$SCRIPT_DIR/results/CCLE_$network_choice/PersonaDrive/$cell_type" >> log/PersonaDrive_${network_choice}_${cell_type}.log &
         # Get the process ID (PID) of the  script
         pid=$!
         max_mem2=$( memory_usage $pid )
@@ -362,8 +362,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Save log information to a file
-        echo -e "Runtime_sec\tPeak_VmRSS" > log/PersonaDrive_${cell_type}_stats.txt
-        echo -e "$runtime\t$max_mem" >> log/PersonaDrive_${cell_type}_stats.txt
+        echo -e "Runtime_sec\tPeak_VmRSS" > log/PersonaDrive_${network_choice}_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> log/PersonaDrive_${network_choice}_${cell_type}_stats.txt
 
         Rscript --vanilla "scripts/format_PersonaDrive_results.R" -n $network_choice -c $cell_type
         
@@ -403,7 +403,7 @@ for cell_type in ${cell_types[@]}; do
         # Start time
         start=$(date +%s.%N)
 
-        matlab -batch "main_SCS('$network_choice', '$cell_type')" > $SCRIPT_DIR/log/SCS_$cell_type.log &
+        matlab -batch "main_SCS('$network_choice', '$cell_type')" > $SCRIPT_DIR/log/SCS_${network_choice}_${cell_type}.log &
         pid=$!
 
         max_mem=$( memory_usage $pid )
@@ -420,8 +420,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Save log information to a file
-        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/SCS_${cell_type}_stats.txt
-        echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/SCS_${cell_type}_stats.txt
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/SCS_${network_choice}_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/SCS_${network_choice}_${cell_type}_stats.txt
 
         cd ..
         matlab -batch "get_SCS_results_names('$network_choice', '$cell_type')"
@@ -468,7 +468,7 @@ for cell_type in ${cell_types[@]}; do
         # Start time
         start=$(date +%s.%N)
 
-        matlab -batch "main_PNC('$network_choice', '$cell_type', '$gurobi_path')" > $SCRIPT_DIR/log/PNC_$cell_type.log &
+        matlab -batch "main_PNC('$network_choice', '$cell_type', '$gurobi_path')" > $SCRIPT_DIR/log/PNC_${network_choice}_${cell_type}.log &
         pid=$!
 
         max_mem=$( memory_usage $pid )
@@ -485,8 +485,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Save log information to a file
-        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/PNC_${cell_type}_stats.txt
-        echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/PNC_${cell_type}_stats.txt
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/PNC_${network_choice}_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/PNC_${network_choice}_${cell_type}_stats.txt
 
         cd $SCRIPT_DIR
         Rscript --vanilla "scripts/format_PNC_results.R" -n $network_choice -c $cell_type
@@ -528,7 +528,7 @@ for cell_type in ${cell_types[@]}; do
         # Start time
         start=$(date +%s.%N)
 
-        matlab -batch "main_Benchmark_control('$network_choice', '$cell_type', '$gurobi_path')" > $SCRIPT_DIR/log/combined_de_novo_methods_$cell_type.log &
+        matlab -batch "main_Benchmark_control('$network_choice', '$cell_type', '$gurobi_path')" > $SCRIPT_DIR/log/combined_de_novo_methods_${network_choice}_${cell_type}.log &
         pid=$!
 
         max_mem=$( memory_usage $pid )
@@ -545,8 +545,8 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         # Save log information to a file
-        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/combined_de_novo_methods_${cell_type}_stats.txt
-        echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/combined_de_novo_methods_${cell_type}_stats.txt
+        echo -e "Runtime_sec\tPeak_VmRSS_KiB" > $SCRIPT_DIR/log/combined_de_novo_methods_${network_choice}_${cell_type}_stats.txt
+        echo -e "$runtime\t$max_mem" >> $SCRIPT_DIR/log/combined_de_novo_methods_${network_choice}_${cell_type}_stats.txt
 
         cd $SCRIPT_DIR
         Rscript --vanilla "scripts/format_combined_de_novo_methods_results.R" -n $network_choice -c $cell_type

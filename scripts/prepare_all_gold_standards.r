@@ -575,6 +575,8 @@ picklesv3_all_gold_standards <- picklesv3 %>%
 
 write_csv(picklesv3_all_gold_standards, "validation_data/all_gold_standards.csv")
 
+picklesv3_all_gold_standards %>% group_by(cell_ID) %>% summarise(count = n()) %>% pull(count) %>% mean()
+
 
 
 # Set thresholds for rare essential genes
@@ -637,5 +639,6 @@ write_csv(picklesv3_rare_gold_standards, "validation_data/rare_gold_standards.cs
 #  group_by(match) %>%
 #  summarise(count=n())
 
+picklesv3_rare_gold_standards %>% group_by(cell_ID) %>% summarise(count = n()) %>% pull(count) %>% mean()
 
 }

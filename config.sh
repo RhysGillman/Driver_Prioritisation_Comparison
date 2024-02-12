@@ -1,7 +1,7 @@
 ########################
 # General
 ########################
-threads=4
+threads=10
 
 ########################
 # Dependencies
@@ -93,9 +93,9 @@ run_DawnRank=0
 run_PRODIGY=0
 run_OncoImpact=0
 run_PersonaDrive=0
-run_SCS=1
-run_PNC=1
-run_combined_de_novo=1
+run_SCS=0
+run_PNC=0
+run_combined_de_novo=0
 run_sysSVM2=0
 run_PhenoDriverR=0
 
@@ -142,7 +142,44 @@ map_genomic_LOF_GOFs=0
   # 0 - Do not run
   # 1 - Run
   
-run_LOF_GOF_annotations=0
+annotate_LOF_GOFs=0
+
+########################
+# Evaluation Steps
+########################
+
+get_consensus_drivers=0
+consensus_selection="DawnRank,PersonaDrive,sysSVM2,CSN_NCUA,PRODIGY"
+find_SL_partners=0
+evaluate_reference_drivers=0
+evaluate_SL_partners=1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ########################
@@ -157,11 +194,11 @@ run_LOF_GOF_annotations=0
   # File path to desired link location
 
 use_symbolic_link=false
-link_location="/c/Users/jc428796/Driver_Prioritisation_link"
+#link_location="/c/Users/jc428796/Driver_Prioritisation_link"
 #link_location="/home/rgillman/Driver_Prioritisation_link"
-#link_location="/e/Driver_Prioritisation_link"
+link_location="/e/Driver_Prioritisation_link"
 
-windows_mode=false
+windows_mode=true
 
 
 
