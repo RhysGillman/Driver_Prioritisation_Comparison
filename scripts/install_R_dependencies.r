@@ -24,7 +24,8 @@ packages <- c(
     "foreach",
     "TopKLists",
     "truncnorm",
-    "e1071"
+    "e1071",
+    "coin"
     
 )
 
@@ -54,7 +55,8 @@ if (any(installed_packages == FALSE)) {
 # Github Packages
 
 packages <- c(
-    "PCSF"="IOR-Bioinformatics/PCSF"
+    "PCSF"="IOR-Bioinformatics/PCSF",
+    "TidyComb"="DrugComb/TidyComb"
 )
 
 installed_packages <- names(packages) %in% rownames(installed.packages())
