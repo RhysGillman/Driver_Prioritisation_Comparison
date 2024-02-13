@@ -125,9 +125,9 @@ cfg_lines <- c(
   paste0("outDir=",perl_dir,"/results/CCLE_",network_choice,"/OncoImpact/",cell_type),
   paste0("scriptDir=",perl_dir,"/scripts/OncoImpact"),
   paste0("numThreads=",threads),
-  paste0("cnv=",perl_dir,"tmp/tmp_",cell_type,"_OncoImpact_cnv.txt"),
-  paste0("exp=",perl_dir,"tmp/tmp_",cell_type,"_OncoImpact_EXP.txt"),
-  paste0("snp=",perl_dir,"tmp/tmp_",cell_type,"_OncoImpact_SNP.txt"),
+  paste0("cnv=",perl_dir,"/tmp/tmp_",cell_type,"_OncoImpact_cnv.txt"),
+  paste0("exp=",perl_dir,"/tmp/tmp_",cell_type,"_OncoImpact_EXP.txt"),
+  paste0("snp=",perl_dir,"/tmp/tmp_",cell_type,"_OncoImpact_SNP.txt"),
   "dataType=RNA_SEQ",
   "testMode=0",
   paste0("network=",perl_dir,"/tmp/tmp_",cell_type,"_OncoImpact_network.txt")
