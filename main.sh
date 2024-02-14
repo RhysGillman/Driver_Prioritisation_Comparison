@@ -325,7 +325,7 @@ for cell_type in ${cell_types[@]}; do
         echo -e "---------------------------\n\n"
         
         Rscript --vanilla "scripts/prepare_PersonaDrive_data.R" -n $network_choice -c $cell_type
-        echo "1. Personalized Bipartite Networks (PBNs)..." > log/PersonaDrive_$cell_type.log
+        echo "1. Personalized Bipartite Networks (PBNs)..." > log/PersonaDrive_${network_choice}_${cell_type}.log
 
         # Start time
         start=$(date +%s.%N)
