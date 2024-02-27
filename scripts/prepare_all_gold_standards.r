@@ -1019,8 +1019,52 @@ GDSC1_z <- GDSC1 %>%
   rownames_to_column("cell_ID") %>%
   pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "global_z")
 
+## Local Z Scores
+
+GDSC1_local_z <- foreach(lin=sort(unique(CCLE_sample_info$lineage)), .combine = "rbind") %do% {
+  message(paste0("Calculating local GDSC1 z-scores for ", lin, " cells"))
+  lineage_cells <- CCLE_sample_info %>% filter(lineage==lin) %>% pull(cell_ID)
+  indiv_local_z_scores <- GDSC1 %>%
+    dplyr::select(drug_ID,cell_ID,ln_ic50) %>%
+    filter(cell_ID %in% lineage_cells) %>%
+    pivot_wider(names_from = drug_ID, values_from = ln_ic50) %>%
+    column_to_rownames("cell_ID") %>%
+    get_z_scores() %>%
+    as.data.frame() %>%
+    rownames_to_column("cell_ID") %>%
+    pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "local_z") %>%
+    mutate(lineage = lin)
+}
+
+
 GDSC1 <- GDSC1 %>%
-  left_join(GDSC1_z, by = c("cell_ID","drug_ID"))
+  left_join(GDSC1_z, by = c("cell_ID","drug_ID")) %>%
+  left_join(GDSC1_local_z, by = c("cell_ID","drug_ID","lineage"))
+
+
+## Weighted average of z-scores
+# https://stats.stackexchange.com/questions/348192/combining-z-scores-by-weighted-average-sanity-check-please
+
+# weights
+w_global <- 0.2
+W_local <- 0.8
+
+# Add Weighted average
+GDSC1 <- GDSC1 %>%
+  mutate(weighted_average = 
+           
+           (w_global/(w_global + W_local)*global_z) + (W_local/(W_local + w_global)*local_z)
+         
+  )
+
+
+# Get the variance of the weighted averages
+w_var <- var(GDSC1$weighted_average, na.rm = T)
+
+# Correct weighted average by diving by varaince
+
+GDSC1 <- GDSC1 %>%
+  mutate(weighted_average = weighted_average/w_var)
 
 
 ## GDSC2
@@ -1047,8 +1091,44 @@ GDSC2_z <- GDSC2 %>%
   rownames_to_column("cell_ID") %>%
   pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "global_z")
 
+
+## Local Z Scores
+
+GDSC2_local_z <- foreach(lin=sort(unique(CCLE_sample_info$lineage)), .combine = "rbind") %do% {
+  message(paste0("Calculating local GDSC2 z-scores for ", lin, " cells"))
+  lineage_cells <- CCLE_sample_info %>% filter(lineage==lin) %>% pull(cell_ID)
+  indiv_local_z_scores <- GDSC2 %>%
+    dplyr::select(drug_ID,cell_ID,ln_ic50) %>%
+    filter(cell_ID %in% lineage_cells) %>%
+    pivot_wider(names_from = drug_ID, values_from = ln_ic50) %>%
+    column_to_rownames("cell_ID") %>%
+    get_z_scores() %>%
+    as.data.frame() %>%
+    rownames_to_column("cell_ID") %>%
+    pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "local_z") %>%
+    mutate(lineage = lin)
+}
+
 GDSC2 <- GDSC2 %>%
-  left_join(GDSC2_z, by = c("cell_ID","drug_ID"))
+  left_join(GDSC2_z, by = c("cell_ID","drug_ID")) %>%
+  left_join(GDSC2_local_z, by = c("cell_ID","drug_ID","lineage"))
+
+
+GDSC2 <- GDSC2 %>%
+  mutate(weighted_average = 
+           
+           (w_global/(w_global + W_local)*global_z) + (W_local/(W_local + w_global)*local_z)
+         
+  )
+
+
+# Get the variance of the weighted averages
+w_var <- var(GDSC2$weighted_average, na.rm = T)
+
+# Correct weighted average by diving by varaince
+
+GDSC2 <- GDSC2 %>%
+  mutate(weighted_average = weighted_average/w_var)
 
 
 
@@ -1078,8 +1158,48 @@ PRISM_z <- PRISM %>%
   rownames_to_column("cell_ID") %>%
   pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "global_z")
 
+
+## Local Z Scores
+
+PRISM_local_z <- foreach(lin=sort(unique(CCLE_sample_info$lineage)), .combine = "rbind") %do% {
+  message(paste0("Calculating local PRISM z-scores for ", lin, " cells"))
+  lineage_cells <- CCLE_sample_info %>% filter(lineage==lin) %>% pull(cell_ID)
+  if(any(lineage_cells %in% PRISM$cell_ID)){
+    indiv_local_z_scores <- PRISM %>%
+      dplyr::select(drug_ID,cell_ID,LFC) %>%
+      filter(cell_ID %in% lineage_cells) %>%
+      pivot_wider(names_from = drug_ID, values_from = LFC) %>%
+      column_to_rownames("cell_ID") %>%
+      get_z_scores() %>%
+      as.data.frame() %>%
+      rownames_to_column("cell_ID") %>%
+      pivot_longer(cols = -cell_ID, names_to = "drug_ID", values_to = "local_z") %>%
+      mutate(lineage = lin)
+  }
+}
+
+
+
 PRISM <- PRISM %>%
-  left_join(PRISM_z, by = c("cell_ID","drug_ID"))
+  left_join(PRISM_z, by = c("cell_ID","drug_ID")) %>%
+  left_join(PRISM_local_z, by = c("cell_ID","drug_ID","lineage"))
+
+
+PRISM <- PRISM %>%
+  mutate(weighted_average = 
+           
+           (w_global/(w_global + W_local)*global_z) + (W_local/(W_local + w_global)*local_z)
+         
+  )
+
+
+# Get the variance of the weighted averages
+w_var <- var(PRISM$weighted_average, na.rm = T)
+
+# Correct weighted average by diving by varaince
+
+PRISM <- PRISM %>%
+  mutate(weighted_average = weighted_average/w_var)
 
 
 
