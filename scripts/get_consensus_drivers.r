@@ -50,16 +50,19 @@ warning(algorithms)
 algorithms <- str_split(algorithms,",") %>% unlist()
 
 
+#RAmethod <- "custom"
 #network_choice <- "own"
 #cell_type <- "Liver"
 
 #algorithms <- c("CSN_NCUA","PersonaDrive","PRODIGY","OncoImpact","sysSVM2","PhenoDriverR") # best for STRINGv11 ref drivers
 #algorithms <- c("SCS","DawnRank","sysSVM2") # best for STRINGv11 rare SL-partners
-algorithms <- c("CSN_NCUA","OncoImpact","sysSVM2") # best for STRINGv11 SL-partners
+#algorithms <- c("CSN_NCUA","OncoImpact","sysSVM2") # best for STRINGv11 SL-partners
+#algorithms <- c("CSN_NCUA","CSN_MDS","OncoImpact","sysSVM2")
+algorithms <- c("DawnRank","OncoImpact","PersonaDrive")
 
-
-#algorithms <- c("SCS","DawnRank","OncoImpact","sysSVM2","PNC","PhenoDriverR") # best for "own networks"
-
+#algorithms <- c("CSN_NCUA","PersonaDrive","SCS","DawnRank","PRODIGY","OncoImpact","sysSVM2","PhenoDriverR") # best for "own" reference drivers
+#algorithms <- c("PRODIGY","sysSVM2","PhenoDriverR") # best for "own" rare_SL_partners
+#algorithms <- c("sysSVM2","PNC") # Best for "own" SL_partners
 
 if(threads>1){
   cl <- makeCluster(threads, outfile = "log/get_consensus_drivers.log")
@@ -286,3 +289,58 @@ if(RAmethod=="BiG"){
 }
 
 
+if(RAmethod=="custom"){
+  
+ exp <- 2
+ topn <- 20
+ 
+ custom_transformation <- function(x){
+   result <- (topn + 1 - x)^exp
+   return(result)
+ }
+ 
+ 
+ 
+ 
+ 
+ # Take the top predictions only
+ filtered_results <- aggregated_results %>% filter(rank <= topn)
+ 
+ 
+ 
+ custom_scores <- filtered_results %>%
+   #dplyr::select(-lineage) %>%
+   pivot_wider(names_from = "algorithm", values_from = "rank")
+ custom_scores <- custom_scores %>%
+   cbind(
+     
+     custom_scores %>% 
+       dplyr::select(-c(lineage,cell_ID,driver)) %>%
+       mutate(across(where(is.numeric), custom_transformation)) %>%
+       setNames(paste0("score_",names(.)))
+         
+         ) %>%
+   #rowwise() %>%
+   #mutate(final_score = sum(across(starts_with("score_"))))
+   
+   mutate(final_score = rowSums(across(starts_with("score_")), na.rm=T))
+ 
+
+ 
+ 
+ consensus_drivers <- custom_scores %>%
+   dplyr::select(lineage,cell_ID, driver, final_score) %>%
+   group_by(cell_ID) %>%
+   arrange(desc(final_score)) %>%
+   mutate(rank = row_number()) %>%
+   ungroup() %>%
+   dplyr::select(-final_score) %>%
+   mutate(algorithm = paste0("custom_consensus_",paste(algorithms,collapse = "_")))
+  
+ suppressWarnings(dir.create(paste0("results/CCLE_",network_choice,"/consensus")))
+ 
+ write_csv(consensus_drivers,paste0("results/CCLE_",network_choice,"/consensus/",RAmethod,"_",paste(algorithms,collapse = "_"),".csv"))
+  
+  
+  
+}
