@@ -390,8 +390,9 @@ SL <- SL %>%
 max_score <- max(SL$final_score)
 min_score <- min(SL$final_score)
 
-SL <- SL %>% mutate(score = (final_score-min_score)/(max_score-min_score)) %>%
-  dplyr::select(gene1,gene2,rank,score)
+SL <- SL %>% mutate(score = (final_score-min_score)/(max_score-min_score)) 
 
-write_csv(SL,paste0("validation_data/CCLE_",network_choice,"/SL_partners_max_",max_SL,".csv"))
+write_csv(SL,paste0("validation_data/CCLE_",network_choice,"/SL_partners_max_",max_SL,"_all_evidence.csv"))
+
+write_csv(SL %>% dplyr::select(gene1,gene2,rank,score),paste0("validation_data/CCLE_",network_choice,"/SL_partners_max_",max_SL,".csv"))
 
